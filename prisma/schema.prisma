@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Referendum {
+  index        Int       @id
+  trackId      Int?
+  proposer     String?
+  proposalHash String?
+  proposalLen  Int?
+  callSection  String?
+  callMethod   String?
+  callArgs     Json?
+  status       String    @default("unknown")
+  submittedAt  Int?
+  decidingSince Int?
+  decidedAt    Int?
+  finalTally   Json?
+  title        String?
+  contentMd    String?
+  contentSig   String?
+  contentPayload Json?
+  metadataHash String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  comments     Comment[]
+  votes        Vote[]
+}
+
+model Comment {
+  id         String     @id @default(cuid())
+  refIndex   Int
+  author     String
+  contentMd  String
+  signature  String     @unique
+  payload    Json
+  replyToId  String?
+  editedAt   DateTime?
+  createdAt  DateTime   @default(now())
+  referendum Referendum @relation(fields: [refIndex], references: [index])
+
+  @@index([refIndex, createdAt])
+  @@index([author, createdAt])
+}
+
+model Vote {
+  id         BigInt     @id @default(autoincrement())
+  refIndex   Int
+  voter      String
+  kind       String
+  aye        Decimal?   @db.Decimal(38, 0)
+  nay        Decimal?   @db.Decimal(38, 0)
+  abstain    Decimal?   @db.Decimal(38, 0)
+  conviction Int?
+  atBlock    Int
+  referendum Referendum @relation(fields: [refIndex], references: [index])
+
+  @@unique([refIndex, voter])
+}
+
+model TallySnapshot {
+  id       BigInt  @id @default(autoincrement())
+  refIndex Int
+  atBlock  Int
+  ayes     Decimal @db.Decimal(38, 0)
+  nays     Decimal @db.Decimal(38, 0)
+  support  Decimal @db.Decimal(38, 0)
+
+  @@unique([refIndex, atBlock])
+}
+
+model WorkerCursor {
+  id        Int @id @default(1)
+  lastBlock Int
+}

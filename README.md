@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VaraGov
 
-## Getting Started
+Self-hosted OpenGov governance UI for Vara Network — referenda list, live tallies
+and threshold curves, conviction voting, a guided referendum-creation wizard, and
+wallet-signed off-chain titles/descriptions/comments.
 
-First, run the development server:
+**Taking over this project? Read [HANDOFF.md](HANDOFF.md) first** — status,
+verified/unverified surface, pitfalls, remaining work. Full specification:
+[SPEC.md](SPEC.md). Screenshots: [docs/screenshots/](docs/screenshots/).
+
+## Stack
+
+Next.js (App Router, TS) · @polkadot/api · Tailwind 4 · Postgres + Prisma 7 ·
+worker process indexing finalized blocks from the public Vara archive nodes.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env              # DATABASE_URL for local Postgres
+docker compose up -d postgres     # local Postgres on :5432
+npx prisma migrate dev            # apply migrations + generate client
+npm run dev                       # web on :3000
+npm run worker                    # event listener (separate terminal)
+npm run backfill                  # one-time: import 78 historical referenda
+npm run check                     # self-checks: curve math + SIMA API (needs dev server)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Production (single VPS)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose --profile prod up -d --build   # web + worker + postgres
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Put Caddy/nginx with TLS in front of :3000.
 
-## Learn More
+## Architecture notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Live state (tallies, tracks, my votes) is read straight from chain RPC — the DB
+  is never authoritative for ongoing referenda.
+- Final tallies exist ONLY in the terminal events (`Confirmed/Rejected/…`); the
+  worker captures them and snapshots the per-voter breakdown from the parent
+  block's state. Missed blocks are re-processed on restart via the archive node
+  (cursor in `WorkerCursor`).
+- Off-chain content is SIMA-style: each title/description/comment is a standalone
+  wallet-signed JSON message, verified server-side (proposer check for titles,
+  existential-deposit + rate-limit gate for comments). No sessions or cookies.
+- Known limitation: wallets without `signRaw` (Ledger) can vote but not comment.

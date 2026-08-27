@@ -1,0 +1,36 @@
+services:
+  web:
+    build: .
+    profiles: ["prod"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://varagov:varagov@postgres:5432/varagov
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+  worker:
+    build: .
+    profiles: ["prod"]
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    environment:
+      DATABASE_URL: postgresql://varagov:varagov@postgres:5432/varagov
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: varagov
+      POSTGRES_PASSWORD: varagov
+      POSTGRES_DB: varagov
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
