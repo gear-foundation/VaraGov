@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Wallet, X, Check } from "lucide-react";
 import { useWallet } from "@/lib/chain/wallet";
 import { shortAddress } from "@/lib/chain/format";
@@ -8,6 +9,10 @@ import { shortAddress } from "@/lib/chain/format";
 export function WalletButton() {
   const { status, accounts, account, connect, select, disconnect } = useWallet();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  // Portal target exists only after mount (SSR renders no document).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
 
   return (
     <>
@@ -28,14 +33,18 @@ export function WalletButton() {
         </span>
       </button>
 
-      {open && (
-        <div
-          className="overlay"
-          onClick={() => setOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Wallet connection"
-        >
+      {/* Portaled to <body>: the header's backdrop-filter creates a containing
+          block that would trap position:fixed and pin the dialog to the top. */}
+      {open &&
+        mounted &&
+        createPortal(
+          <div
+            className="overlay"
+            onClick={() => setOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Wallet connection"
+          >
           <div
             className="modal anim-pop w-full max-w-sm p-5"
             onClick={(e) => e.stopPropagation()}
@@ -136,8 +145,9 @@ export function WalletButton() {
               </div>
             )}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

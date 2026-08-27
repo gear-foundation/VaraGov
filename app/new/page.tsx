@@ -30,6 +30,7 @@ import {
   formatVara,
 } from "@/lib/chain/format";
 import { signAndPost } from "@/lib/content";
+import { Seal } from "@/components/Seal";
 import { MAX_TITLE } from "@/lib/sima";
 
 type ProposalType = "text" | "treasury" | "advanced";
@@ -570,8 +571,10 @@ export default function NewProposalPage() {
           {execError && <p className="text-sm text-nay">{execError}</p>}
 
           {newIndex !== null && !execError && execSteps.every((s) => s.state !== "active") && (
-            <div className="panel p-4">
-              <p className="text-sm text-aye">Referendum #{newIndex} created ✓</p>
+            <div className="panel flex items-start gap-4 p-4">
+              <Seal size={46} />
+              <div>
+              <p className="display text-lg text-aye">Referendum #{newIndex} is on the record</p>
               <p className="mt-1 text-xs text-muted">
                 Next: place the decision deposit from the referendum page so it can
                 enter the deciding period.
@@ -582,6 +585,7 @@ export default function NewProposalPage() {
               >
                 Open referendum #{newIndex}
               </button>
+              </div>
             </div>
           )}
           {execError && newIndex !== null && (

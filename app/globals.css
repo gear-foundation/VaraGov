@@ -455,3 +455,38 @@ body {
     animation: shimmer 1.6s linear infinite;
   }
 }
+
+/* ---------- Flourishes ---------- */
+
+/* Serif drop cap for referendum descriptions (not comments). */
+.drop-cap > p:first-of-type::first-letter {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 3.1em;
+  line-height: 0.82;
+  float: left;
+  padding-right: 0.09em;
+  padding-top: 0.04em;
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* Wax seal pop-in on completed signatures. */
+@keyframes seal-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-24deg);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.1) rotate(3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seal-in {
+    animation: seal-in 0.55s var(--ease-out) both;
+  }
+}

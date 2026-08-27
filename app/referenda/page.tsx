@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Inbox } from "lucide-react";
+import { Search } from "lucide-react";
 import { useReferendaList, useTracks } from "@/lib/chain/hooks";
 import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { useRefMeta } from "@/lib/content";
@@ -17,9 +17,11 @@ export default function ReferendaPage() {
   const meta = useRefMeta();
   const [tab, setTab] = useState<Tab>("All");
   const [trackFilter, setTrackFilter] = useState<number | "all">("all");
+  const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
     if (!referenda) return [];
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return referenda.filter((r) => {
       if (tab === "Ongoing" && !ONGOING_PHASES.includes(r.phase)) return false;
       if (tab === "Approved" && r.phase !== "approved") return false;
@@ -30,9 +32,16 @@ export default function ReferendaPage() {
         return false;
       const trackId = r.trackId ?? meta?.get(r.index)?.trackId ?? null;
       if (trackFilter !== "all" && trackId !== trackFilter) return false;
+      if (words.length > 0) {
+        const track = tracks?.find((t) => t.id === trackId);
+        const haystack = `#${r.index} ${r.index} ${meta?.get(r.index)?.blob ?? ""} ${
+          track?.displayName.toLowerCase() ?? ""
+        } ${r.proposer?.toLowerCase() ?? ""}`;
+        if (!words.every((w) => haystack.includes(w))) return false;
+      }
       return true;
     });
-  }, [referenda, tab, trackFilter, meta]);
+  }, [referenda, tab, trackFilter, meta, tracks, query]);
 
   const ongoingCount = referenda?.filter((r) =>
     ONGOING_PHASES.includes(r.phase),
@@ -68,6 +77,20 @@ export default function ReferendaPage() {
 
       {/* Controls */}
       <div className="mt-5 mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-52 flex-1 sm:max-w-72 sm:flex-none">
+          <Search
+            size={15}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search title, description, №…"
+            aria-label="Search referenda"
+            className="input h-[38px] !pl-9"
+          />
+        </div>
         <div
           role="tablist"
           aria-label="Filter by status"
@@ -113,12 +136,14 @@ export default function ReferendaPage() {
       ) : isPending ? (
         <Skeleton />
       ) : filtered.length === 0 ? (
-        <div className="panel anim-rise flex flex-col items-center gap-3 p-12 text-center">
-          <Inbox size={28} className="text-muted/60" strokeWidth={1.5} />
+        <div className="panel anim-rise flex flex-col items-center gap-4 p-12 text-center">
+          <Guilloche className="h-28 w-28 opacity-80" />
           <p className="text-sm text-muted">
-            {tab === "Ongoing"
-              ? "No ongoing referenda right now — put the first question to the chamber."
-              : "No referenda match this filter."}
+            {query.trim()
+              ? `Nothing in the record matches “${query.trim()}”.`
+              : tab === "Ongoing"
+                ? "No ongoing referenda right now — put the first question to the chamber."
+                : "No referenda match this filter."}
           </p>
         </div>
       ) : (

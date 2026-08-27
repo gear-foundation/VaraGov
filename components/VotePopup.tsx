@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
+import { Seal } from "./Seal";
 import BigNumber from "bignumber.js";
 import { BN } from "@polkadot/util";
 import { useApi } from "@/lib/chain/ApiProvider";
@@ -236,9 +237,12 @@ export function VotePopup({
               <p className="mb-3 text-sm text-nay">{status.message}</p>
             )}
             {(status.state === "inBlock" || status.state === "finalized") && (
-              <p className="mb-3 text-sm text-aye">
-                Vote {status.state === "finalized" ? "finalized" : "in block"} ✓
-              </p>
+              <div className="mb-3 flex items-center gap-3">
+                {status.state === "finalized" && <Seal size={40} />}
+                <p className="text-sm text-aye">
+                  Vote {status.state === "finalized" ? "finalized — sealed on chain" : "in block"}
+                </p>
+              </div>
             )}
 
             <button

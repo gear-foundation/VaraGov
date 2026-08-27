@@ -59,4 +59,7 @@ OKLCH tokens (light `:root` / dark `.dark`), `.panel`, `.btn` +
 `.anim-pop`, `.anim-bar`, `.anim-rule`, `.skeleton`, `.live-dot`, staggered via
 `--stagger`), and a semantic z-scale. Icons are lucide-react only — no emoji in
 UI. All motion respects `prefers-reduced-motion`. The seal logo lives in
-`components/Logo.tsx`.
+`components/Logo.tsx`; the wax seal (`components/Seal.tsx`, `.seal-in`) marks
+completed signatures; `.drop-cap` styles the first letter of referendum
+descriptions. Wallet modal is portaled to <body> — the header's backdrop-filter
+traps position:fixed (keep any new header-launched dialog portaled too).

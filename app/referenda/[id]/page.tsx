@@ -194,7 +194,7 @@ export default function ReferendumPage({
         <section className="mt-6">
           {content?.contentMd ? (
             <div className="panel p-4">
-              <Markdown>{content.contentMd}</Markdown>
+              <Markdown dropCap>{content.contentMd}</Markdown>
             </div>
           ) : (
             <div className="rounded-[14px] border border-dashed border-line p-4 text-sm text-muted">

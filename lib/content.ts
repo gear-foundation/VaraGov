@@ -5,7 +5,11 @@ import { stringToHex } from "@polkadot/util";
 import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import { buildPayloadJson, type SimaPayload } from "./sima";
 
-export type RefMeta = { title: string | null; trackId: number | null };
+export type RefMeta = {
+  title: string | null;
+  trackId: number | null;
+  blob: string; // lowercase title + description, for the quick filter
+};
 
 export function useRefMeta(): Map<number, RefMeta> | undefined {
   const { data } = useQuery({
@@ -16,7 +20,7 @@ export function useRefMeta(): Map<number, RefMeta> | undefined {
       return new Map<number, RefMeta>(
         (json.titles as ({ index: number } & RefMeta)[]).map((t) => [
           t.index,
-          { title: t.title, trackId: t.trackId },
+          { title: t.title, trackId: t.trackId, blob: t.blob ?? "" },
         ]),
       );
     },

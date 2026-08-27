@@ -5,12 +5,21 @@ import { verifySimaMessage } from "@/lib/server/verify";
 import { parseReferendumInfo } from "@/lib/chain/referenda";
 
 export async function GET() {
-  // Per-referendum meta map for the list: off-chain titles plus the trackId,
-  // which is pruned from chain state once a referendum is decided.
+  // Per-referendum meta map for the list: off-chain titles plus the trackId
+  // (pruned from chain state once decided) plus a lowercase search blob over
+  // title + description for the client-side quick filter. 78 referenda —
+  // shipping the blob beats a search endpoint.
   const rows = await prisma.referendum.findMany({
-    select: { index: true, title: true, trackId: true },
+    select: { index: true, title: true, trackId: true, contentMd: true },
   });
-  return NextResponse.json({ titles: rows });
+  return NextResponse.json({
+    titles: rows.map((r) => ({
+      index: r.index,
+      title: r.title,
+      trackId: r.trackId,
+      blob: `${r.title ?? ""} ${r.contentMd ?? ""}`.toLowerCase().slice(0, 6000),
+    })),
+  });
 }
 
 export async function POST(req: Request) {
