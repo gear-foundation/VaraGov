@@ -20,6 +20,8 @@ type HistoryDto = {
   referendum: {
     trackId: number | null;
     proposer: string | null;
+    proposalHash: string | null;
+    proposalLen: number | null;
     submittedAt: number | null;
     finalTally: { ayes: string; nays: string; support: string } | null;
     decidedAt: number | null;

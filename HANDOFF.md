@@ -52,11 +52,14 @@ In separate terminals (as needed):
 npm run worker      # block listener: referenda events → DB, vote snapshots
 npm run backfill    # one-time history import (idempotent, already ran)
 npm run check       # self-checks (curves — always; SIMA — needs live dev+pg)
+npm test            # fast unit tests for SIMA validation and indexer parsing
 npm run build       # production build (do NOT run while dev is up — shared .next)
 ```
 
-Production (single VPS): `docker compose --profile prod up -d --build` brings up
-web + worker + postgres; put Caddy/nginx with TLS in front.
+Production (single VPS): set a strong `VARAGOV_DB_PASSWORD`, then
+`docker compose --profile prod up -d --build` brings up web + worker + postgres,
+waits for Postgres health, and applies migrations before the app starts. Put
+Caddy/nginx with TLS in front.
 
 ## Code map
 

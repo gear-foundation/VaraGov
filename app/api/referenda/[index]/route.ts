@@ -16,6 +16,8 @@ export async function GET(
       index: true,
       trackId: true,
       proposer: true,
+      proposalHash: true,
+      proposalLen: true,
       status: true,
       submittedAt: true,
       decidedAt: true,
@@ -24,8 +26,6 @@ export async function GET(
   });
   const votes = await prisma.vote.findMany({
     where: { refIndex: idx },
-    orderBy: [{ aye: { sort: "desc", nulls: "last" } }],
-    take: 500,
     select: {
       voter: true,
       kind: true,
@@ -37,11 +37,19 @@ export async function GET(
   });
   return NextResponse.json({
     referendum: row,
-    votes: votes.map((v) => ({
-      ...v,
-      aye: v.aye?.toString() ?? null,
-      nay: v.nay?.toString() ?? null,
-      abstain: v.abstain?.toString() ?? null,
-    })),
+    votes: votes
+      .map((v) => ({
+        ...v,
+        aye: v.aye?.toString() ?? null,
+        nay: v.nay?.toString() ?? null,
+        abstain: v.abstain?.toString() ?? null,
+      }))
+      .sort((a, b) => {
+        const total = (v: typeof a) =>
+          BigInt(v.aye ?? 0) + BigInt(v.nay ?? 0) + BigInt(v.abstain ?? 0);
+        const left = total(a);
+        const right = total(b);
+        return left === right ? a.voter.localeCompare(b.voter) : left > right ? -1 : 1;
+      }),
   });
 }

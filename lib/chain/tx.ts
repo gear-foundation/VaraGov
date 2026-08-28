@@ -2,6 +2,7 @@
 
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import type { ISubmittableResult } from "@polkadot/types/types";
+import type { DispatchError } from "@polkadot/types/interfaces";
 import { useCallback, useState } from "react";
 import { useWallet, getSigner } from "./wallet";
 
@@ -31,10 +32,19 @@ export function useSendTx() {
       try {
         const signer = await getSigner(account);
         return await new Promise<boolean>((resolve) => {
+          let unsubscribe: (() => void) | undefined;
+          let settled = false;
+          const finish = (ok: boolean) => {
+            if (settled) return;
+            settled = true;
+            unsubscribe?.();
+            resolve(ok);
+          };
           tx.signAndSend(
             account.address,
             { signer },
             (result: ISubmittableResult) => {
+              if (settled) return;
               if (result.status.isBroadcast) {
                 setStatus({ state: "broadcast" });
               } else if (result.status.isInBlock) {
@@ -42,34 +52,59 @@ export function useSendTx() {
                   event.section === "system" && event.method === "ExtrinsicFailed",
                 );
                 if (failed) {
+                  const dispatchError = failed.event.data[0] as unknown as DispatchError;
+                  let message = "Transaction failed on chain.";
+                  if (dispatchError?.isModule) {
+                    const decoded = tx.registry.findMetaError(dispatchError.asModule);
+                    message = `${decoded.section}.${decoded.name}: ${decoded.docs.join(" ")}`;
+                  }
                   setStatus({
                     state: "error",
-                    message: "Transaction failed on chain (ExtrinsicFailed).",
+                    message,
                   });
-                  resolve(false);
+                  finish(false);
                   return;
                 }
                 setStatus({
                   state: "inBlock",
                   blockHash: result.status.asInBlock.toHex(),
                 });
-                onInBlock?.(result);
+                try {
+                  onInBlock?.(result);
+                } catch (error) {
+                  setStatus({ state: "error", message: (error as Error).message });
+                  finish(false);
+                }
               } else if (result.status.isFinalized) {
                 setStatus({
                   state: "finalized",
                   blockHash: result.status.asFinalized.toHex(),
                 });
-                resolve(true);
-              } else if (result.isError) {
-                setStatus({ state: "error", message: "Transaction error." });
-                resolve(false);
+                finish(true);
+              } else if (
+                result.isError ||
+                result.status.isDropped ||
+                result.status.isInvalid ||
+                result.status.isUsurped ||
+                result.status.isFinalityTimeout
+              ) {
+                setStatus({
+                  state: "error",
+                  message: `Transaction ${result.status.type.toLowerCase()}.`,
+                });
+                finish(false);
               }
             },
-          ).catch((e: Error) => {
-            // User cancelled in the extension or signing failed.
-            setStatus({ state: "error", message: e.message });
-            resolve(false);
-          });
+          )
+            .then((stop) => {
+              unsubscribe = stop;
+              if (settled) stop();
+            })
+            .catch((e: Error) => {
+              // User cancelled in the extension or signing failed.
+              setStatus({ state: "error", message: e.message });
+              finish(false);
+            });
         });
       } catch (e) {
         setStatus({ state: "error", message: (e as Error).message });
