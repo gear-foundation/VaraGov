@@ -2,6 +2,12 @@
 import type { ApiPromise } from "@polkadot/api";
 import { parseReferendumInfo, type Phase } from "../chain/referenda";
 import { prisma } from "./db";
+import {
+  parseSnapshotVote,
+  type SnapshotVote,
+} from "./indexer-parsers";
+
+export { tallyFromEvent } from "./indexer-parsers";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -12,21 +18,6 @@ export const TERMINAL_EVENTS: Record<string, Phase> = {
   TimedOut: "timedOut",
   Killed: "killed",
 };
-
-export function tallyFromEvent(eventData: any): {
-  ayes: string;
-  nays: string;
-  support: string;
-} | null {
-  // Terminal events carry { index, tally } — the only place the final tally exists.
-  const tally = eventData[1];
-  if (!tally || tally.ayes === undefined) return null;
-  return {
-    ayes: tally.ayes.toString(),
-    nays: tally.nays.toString(),
-    support: tally.support.toString(),
-  };
-}
 
 // Refresh a referendum row from (current or historical) chain state.
 export async function upsertFromState(
@@ -63,7 +54,7 @@ export async function snapshotVotes(
   atBlock: number,
 ): Promise<number> {
   const entries = await apiAt.query.convictionVoting.votingFor.entries();
-  let count = 0;
+  const snapshot: SnapshotVote[] = [];
   for (const [key, voting] of entries) {
     const [voter, track] = key.args as [any, any];
     if (track.toNumber() !== trackId) continue;
@@ -71,39 +62,23 @@ export async function snapshotVotes(
     const votes = (voting as any).asCasting.votes;
     for (const [idx, vote] of votes) {
       if (idx.toNumber() !== refIndex) continue;
-      let kind = "standard";
-      let aye: string | null = null;
-      let nay: string | null = null;
-      let abstain: string | null = null;
-      let conviction: number | null = null;
-      if (vote.isStandard) {
-        const s = vote.asStandard;
-        const bal = s.balance.toString();
-        if (s.vote.isAye) aye = bal;
-        else nay = bal;
-        conviction = s.vote.conviction.index;
-      } else if (vote.isSplit) {
-        kind = "split";
-        aye = vote.asSplit.aye.toString();
-        nay = vote.asSplit.nay.toString();
-      } else if (vote.isSplitAbstain) {
-        kind = "splitAbstain";
-        const sa = vote.asSplitAbstain;
-        aye = sa.aye.toString();
-        nay = sa.nay.toString();
-        abstain = sa.abstain.toString();
-      } else {
-        continue;
-      }
-      count++;
-      await prisma.vote.upsert({
-        where: { refIndex_voter: { refIndex, voter: voter.toString() } },
-        create: { refIndex, voter: voter.toString(), kind, aye, nay, abstain, conviction, atBlock },
-        update: { kind, aye, nay, abstain, conviction, atBlock },
+      const parsed = parseSnapshotVote(vote);
+      if (!parsed) continue;
+      snapshot.push({
+        refIndex,
+        voter: voter.toString(),
+        atBlock,
+        ...parsed,
       });
     }
   }
-  return count;
+
+  // A snapshot is a replacement, not an append: removed votes must disappear.
+  await prisma.$transaction(async (tx) => {
+    await tx.vote.deleteMany({ where: { refIndex } });
+    if (snapshot.length > 0) await tx.vote.createMany({ data: snapshot });
+  });
+  return snapshot.length;
 }
 
 export async function recordTallySnapshot(

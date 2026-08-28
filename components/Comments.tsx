@@ -10,10 +10,15 @@ import { Markdown } from "./Markdown";
 function CommentItem({
   c,
   onReply,
+  onEdit,
+  canReply,
 }: {
   c: CommentDto;
   onReply: (id: string) => void;
+  onEdit: (comment: CommentDto) => void;
+  canReply: boolean;
 }) {
+  const { account } = useWallet();
   return (
     <div className="panel !rounded-[12px] p-3">
       <div className="mb-1 flex items-center gap-2 text-xs text-muted">
@@ -29,12 +34,18 @@ function CommentItem({
           })}
         </span>
         {c.editedAt && <span>(edited)</span>}
-        <button
-          onClick={() => onReply(c.id)}
-          className="ml-auto hover:text-ink"
-        >
-          Reply
-        </button>
+        <span className="ml-auto flex gap-3">
+          {account?.address === c.author && (
+            <button onClick={() => onEdit(c)} className="hover:text-ink">
+              Edit
+            </button>
+          )}
+          {canReply && (
+            <button onClick={() => onReply(c.id)} className="hover:text-ink">
+              Reply
+            </button>
+          )}
+        </span>
       </div>
       <Markdown>{c.contentMd}</Markdown>
     </div>
@@ -47,6 +58,7 @@ export function Comments({ refIndex }: { refIndex: number }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [editing, setEditing] = useState<CommentDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,11 +73,11 @@ export function Comments({ refIndex }: { refIndex: number }) {
     const result = await signAndPost(
       `/api/comments/${refIndex}`,
       {
-        action: "comment",
+        action: editing ? "edit_comment" : "comment",
         network: "vara",
         refIndex,
         content: text.trim(),
-        ...(replyTo ? { replyTo } : {}),
+        ...(editing ? { commentId: editing.id } : replyTo ? { replyTo } : {}),
         timestamp: Date.now(),
       },
       account,
@@ -77,6 +89,7 @@ export function Comments({ refIndex }: { refIndex: number }) {
     }
     setText("");
     setReplyTo(null);
+    setEditing(null);
     await queryClient.invalidateQueries({ queryKey: ["comments", refIndex] });
   }
 
@@ -96,11 +109,34 @@ export function Comments({ refIndex }: { refIndex: number }) {
         <div className="space-y-3">
           {roots.map((c) => (
             <div key={c.id}>
-              <CommentItem c={c} onReply={setReplyTo} />
+              <CommentItem
+                c={c}
+                canReply
+                onReply={(id) => {
+                  setEditing(null);
+                  setReplyTo(id);
+                  setText("");
+                }}
+                onEdit={(comment) => {
+                  setReplyTo(null);
+                  setEditing(comment);
+                  setText(comment.contentMd);
+                }}
+              />
               {replies(c.id).length > 0 && (
                 <div className="ml-6 mt-2 space-y-2">
                   {replies(c.id).map((r) => (
-                    <CommentItem key={r.id} c={r} onReply={setReplyTo} />
+                    <CommentItem
+                      key={r.id}
+                      c={r}
+                      canReply={false}
+                      onReply={setReplyTo}
+                      onEdit={(comment) => {
+                        setReplyTo(null);
+                        setEditing(comment);
+                        setText(comment.contentMd);
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -114,6 +150,20 @@ export function Comments({ refIndex }: { refIndex: number }) {
           <p className="mb-2 text-xs text-muted">
             Replying to a comment ·{" "}
             <button onClick={() => setReplyTo(null)} className="text-nay hover:underline">
+              cancel
+            </button>
+          </p>
+        )}
+        {editing && (
+          <p className="mb-2 text-xs text-muted">
+            Editing your comment ·{" "}
+            <button
+              onClick={() => {
+                setEditing(null);
+                setText("");
+              }}
+              className="text-nay hover:underline"
+            >
               cancel
             </button>
           </p>
@@ -141,7 +191,7 @@ export function Comments({ refIndex }: { refIndex: number }) {
             disabled={!account || busy || !text.trim()}
             className="btn btn-soft"
           >
-            {busy ? "Signing…" : "Post comment"}
+            {busy ? "Signing…" : editing ? "Save edit" : "Post comment"}
           </button>
         </div>
       </div>

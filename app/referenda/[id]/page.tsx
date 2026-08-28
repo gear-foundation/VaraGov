@@ -96,7 +96,15 @@ export default function ReferendumPage({
   const { data: history } = useHistory(index);
   const tracks = useTracks();
   const issuance = useActiveIssuance();
-  const { data: call } = useDecodedCall(ref);
+  const refForCall =
+    ref && !ref.proposalHash && history?.referendum?.proposalHash
+      ? {
+          ...ref,
+          proposalHash: history.referendum.proposalHash,
+          proposalLen: history.referendum.proposalLen,
+        }
+      : ref;
+  const { data: call } = useDecodedCall(refForCall);
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid referendum index.</p>;

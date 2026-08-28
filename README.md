@@ -24,6 +24,7 @@ npm run dev                       # web on :3000
 npm run worker                    # event listener (separate terminal)
 npm run backfill                  # one-time: import 78 historical referenda
 npm run check                     # self-checks: curve math + SIMA API (needs dev server)
+npm test                          # fast unit tests (no DB or RPC required)
 ```
 
 ## Production (single VPS)
@@ -32,7 +33,9 @@ npm run check                     # self-checks: curve math + SIMA API (needs de
 docker compose --profile prod up -d --build   # web + worker + postgres
 ```
 
-Put Caddy/nginx with TLS in front of :3000.
+Set a strong `VARAGOV_DB_PASSWORD`, then put Caddy/nginx with TLS in front of
+:3000. Postgres is bound to localhost only; the production profile applies
+migrations before starting the web and worker services.
 
 ## Architecture notes
 

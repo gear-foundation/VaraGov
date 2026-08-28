@@ -9,7 +9,8 @@
     "lint": "eslint",
     "worker": "tsx worker/worker.mts",
     "backfill": "tsx scripts/backfill.mts",
-    "check": "tsx scripts/check-curves.ts && tsx scripts/check-sima.mts",
+    "check": "node --import tsx scripts/check-curves.ts && node --import tsx scripts/check-sima.mts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

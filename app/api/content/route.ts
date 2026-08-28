@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if (payload.action !== "provide_context") {
     return NextResponse.json({ error: "Wrong action for this endpoint." }, { status: 400 });
   }
-  if (!payload.title || payload.content === undefined) {
+  if (!payload.title?.trim() || payload.content === undefined) {
     return NextResponse.json({ error: "title and content are required." }, { status: 400 });
   }
 
@@ -58,27 +58,45 @@ export async function POST(req: Request) {
     );
   }
 
-  await prisma.referendum.upsert({
-    where: { index: payload.refIndex },
-    create: {
-      index: payload.refIndex,
-      trackId: ref.trackId,
-      proposer: ref.proposer,
-      status: ref.phase,
-      title: payload.title,
-      contentMd: payload.content,
-      contentSig: signature,
-      contentPayload: JSON.parse(payloadJson),
-      metadataHash: contentHash,
-    },
-    update: {
-      title: payload.title,
-      contentMd: payload.content,
-      contentSig: signature,
-      contentPayload: JSON.parse(payloadJson),
-      metadataHash: contentHash,
-    },
+  const stored = await prisma.$transaction(async (tx) => {
+    // Prevent a delayed/replayed request from overwriting a newer signed version.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${payload.refIndex})`;
+    const current = await tx.referendum.findUnique({
+      where: { index: payload.refIndex },
+      select: { contentPayload: true },
+    });
+    const oldTimestamp = (current?.contentPayload as { timestamp?: unknown } | null)?.timestamp;
+    if (typeof oldTimestamp === "number" && oldTimestamp >= payload.timestamp) return false;
+
+    await tx.referendum.upsert({
+      where: { index: payload.refIndex },
+      create: {
+        index: payload.refIndex,
+        trackId: ref.trackId,
+        proposer: ref.proposer,
+        status: ref.phase,
+        title: payload.title,
+        contentMd: payload.content,
+        contentSig: signature,
+        contentPayload: JSON.parse(payloadJson),
+        metadataHash: contentHash,
+      },
+      update: {
+        title: payload.title,
+        contentMd: payload.content,
+        contentSig: signature,
+        contentPayload: JSON.parse(payloadJson),
+        metadataHash: contentHash,
+      },
+    });
+    return true;
   });
+  if (!stored) {
+    return NextResponse.json(
+      { error: "This content is older than the stored version." },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json({ ok: true, contentHash });
 }

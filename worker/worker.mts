@@ -43,7 +43,8 @@ async function processBlock(api: ApiPromise, n: number): Promise<void> {
     }
   }
   for (const index of dirty) {
-    await upsertFromState(api, index);
+    // Catch-up must reflect this historical block, not whatever state is current now.
+    await upsertFromState(apiAt, index);
   }
 }
 
