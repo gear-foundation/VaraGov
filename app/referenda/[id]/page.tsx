@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { hexToString, isHex } from "@polkadot/util";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
@@ -80,6 +81,26 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+function readableRemark(call: {
+  section: string;
+  method: string;
+  args: Record<string, string>;
+} | null | undefined) {
+  if (call?.section !== "system" || call.method !== "remark") return null;
+  const value = call.args.remark;
+  if (!value) return null;
+  if (!isHex(value)) return value;
+
+  try {
+    const decoded = hexToString(value);
+    return /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(decoded)
+      ? value
+      : decoded;
+  } catch {
+    return value;
+  }
+}
+
 export default function ReferendumPage({
   params,
 }: {
@@ -105,6 +126,7 @@ export default function ReferendumPage({
         }
       : ref;
   const { data: call } = useDecodedCall(refForCall);
+  const remark = readableRemark(call);
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid referendum index.</p>;
@@ -203,6 +225,11 @@ export default function ReferendumPage({
           {content?.contentMd ? (
             <div className="panel p-4">
               <Markdown dropCap>{content.contentMd}</Markdown>
+            </div>
+          ) : remark ? (
+            <div className="panel p-4">
+              <h2 className="label-serif mb-2">Remark</h2>
+              <p className="whitespace-pre-wrap text-sm break-words">{remark}</p>
             </div>
           ) : (
             <div className="rounded-[14px] border border-dashed border-line p-4 text-sm text-muted">

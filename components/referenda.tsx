@@ -84,7 +84,7 @@ export function TallyBar({
 }) {
   const approval = approvalFraction(ayes, nays);
   if (approval === null) {
-    return <span className="text-xs text-muted">No votes yet</span>;
+    return <span className="block text-right text-xs text-muted">No votes yet</span>;
   }
   return (
     <div className="flex items-center gap-3">
@@ -139,7 +139,7 @@ export function ReferendumRow({
           <TrackBadge track={track} />
           {r.proposer && (
             <span
-              className="tnum hidden truncate text-xs text-muted/80 md:block"
+              className="tnum hidden truncate text-xs text-muted/80 md:col-start-3 md:block"
               title={r.proposer}
             >
               {shortAddress(r.proposer)}
