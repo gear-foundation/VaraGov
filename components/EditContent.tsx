@@ -9,9 +9,10 @@ import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { signAndPost, type RefContent } from "@/lib/content";
 import { MAX_TITLE } from "@/lib/sima";
 import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
+import { anchorReferendumMetadata } from "@/lib/chain/metadata";
 
 // Proposer-only editor for title + markdown description.
-// Flow: sign SIMA message -> POST -> optional referenda.setMetadata anchor.
+// Flow: sign SIMA message -> POST -> note exact payload preimage -> optional metadata anchor.
 export function EditContent({
   referendum,
   existing,
@@ -31,11 +32,14 @@ export function EditContent({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedHash, setSavedHash] = useState<string | null>(null);
+  const [savedPayloadHex, setSavedPayloadHex] = useState<string | null>(null);
 
   const canAnchor =
     savedHash !== null &&
+    savedPayloadHex !== null &&
     ONGOING_PHASES.includes(referendum.phase) &&
-    !!api?.tx.referenda.setMetadata;
+    !!api?.tx.referenda.setMetadata &&
+    !!api?.tx.preimage.notePreimage;
 
   async function save() {
     if (!account || !title.trim()) return;
@@ -59,13 +63,27 @@ export function EditContent({
       return;
     }
     setSavedHash(result.contentHash ?? null);
+    setSavedPayloadHex(result.payloadHex);
     await queryClient.invalidateQueries({ queryKey: ["content", referendum.index] });
     await queryClient.invalidateQueries({ queryKey: ["titles"] });
   }
 
   async function anchor() {
-    if (!api || !savedHash) return;
-    await send(api.tx.referenda.setMetadata(referendum.index, savedHash));
+    if (!api || !savedHash || !savedPayloadHex) return;
+    const result = await anchorReferendumMetadata(
+      api,
+      referendum.index,
+      savedHash,
+      savedPayloadHex,
+      send,
+    );
+    if (!result.ok) {
+      setError(
+        result.stage === "preimage"
+          ? "Registering the signed description preimage failed."
+          : "Setting referendum metadata failed.",
+      );
+    }
   }
 
   return (
@@ -133,9 +151,9 @@ export function EditContent({
             {canAnchor ? (
               <>
                 <p className="mt-2 text-sm text-muted">
-                  Optionally anchor the content hash on chain via{" "}
-                  <code>referenda.setMetadata</code> so the description is
-                  tamper-evident:
+                  Optionally register the exact signed description as an on-chain
+                  preimage, then anchor its hash via <code>referenda.setMetadata</code>.
+                  The preimage requires a refundable deposit:
                 </p>
                 <p className="tnum mt-1 break-all text-xs text-muted">{savedHash}</p>
                 <div className="mt-3 flex gap-2">
@@ -157,6 +175,9 @@ export function EditContent({
                 </div>
                 {txStatus.state === "error" && (
                   <p className="mt-2 text-sm text-nay">{txStatus.message}</p>
+                )}
+                {error && txStatus.state !== "error" && (
+                  <p className="mt-2 text-sm text-nay">{error}</p>
                 )}
                 {txStatus.state === "finalized" && (
                   <p className="mt-2 text-sm text-aye">Anchored ✓</p>

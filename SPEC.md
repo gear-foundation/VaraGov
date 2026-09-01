@@ -232,7 +232,7 @@ Client: `signer.signRaw({type: 'bytes', data: stringToHex(JSON.stringify(payload
 
 ### 4.3 On-chain anchoring
 
-After saving title/description the server returns `blake2_256(JSON.stringify(payload))`; the client signs `referenda.setMetadata(index, hash)` (callable only by the proposer while the referendum is ongoing). This gives an immutable on-chain binding for the content. If the user rejects the transaction — the content is still saved, the anchor is optional (a "not anchored" note in the UI).
+After saving title/description the server returns `blake2_256(JSON.stringify(payload))`. Vara runtime requires metadata hashes to reference an existing preimage, so the client first calls `preimage.notePreimage` with the exact signed JSON bytes and then signs `referenda.setMetadata(index, hash)` (callable only by the proposer while the referendum is ongoing). This gives an immutable on-chain binding for the content. The metadata preimage requires a refundable deposit. If the user rejects either transaction, the content is still saved and the anchor remains optional.
 
 ### 4.4 Comment anti-spam (council decision — chain economics + limits)
 
@@ -267,7 +267,8 @@ Summary: type, track, call (decoded), title. Cost table: submission deposit 1500
 2. `referenda.submit(origin, {Lookup:{hash,len}}, {After: minEnactmentPeriod})`. Origin: root track → `{system:'Root'}`, otherwise `{Origins: '<CamelCaseTrackName>'}`.
 3. `referendumIndex` from the `referenda.Submitted` event.
 4. Sign the SIMA title/description message (§4) — free, instant.
-5. `referenda.setMetadata(index, contentHash)`.
+5. `preimage.notePreimage(exactSignedContentPayload)` unless already stored.
+6. `referenda.setMetadata(index, contentHash)`.
 6. Offer to pay the decision deposit now (a button, skippable).
 
 Success → redirect to the referendum page.

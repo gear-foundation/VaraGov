@@ -30,6 +30,7 @@ import {
   formatVara,
 } from "@/lib/chain/format";
 import { signAndPost } from "@/lib/content";
+import { anchorReferendumMetadata } from "@/lib/chain/metadata";
 import { Seal } from "@/components/Seal";
 import { MAX_TITLE } from "@/lib/sima";
 
@@ -180,6 +181,7 @@ export default function NewProposalPage() {
       { id: "preimage", label: "Register preimage (preimage.notePreimage)", state: "todo" as ExecState },
       { id: "submit", label: "Submit referendum (referenda.submit)", state: "todo" as ExecState },
       { id: "sima", label: "Sign title & description (off-chain message)", state: "todo" as ExecState },
+      { id: "metadata-preimage", label: "Register description preimage", state: "todo" as ExecState },
       { id: "anchor", label: "Anchor content hash (referenda.setMetadata)", state: "todo" as ExecState },
     ];
     setExecSteps(plan);
@@ -255,20 +257,38 @@ export default function NewProposalPage() {
     }
     setExec("sima", "done");
 
-    // 4. Anchor the content hash on chain.
-    setExec("anchor", "active");
+    // 4–5. Store the exact signed payload as a preimage, then anchor its hash.
     if (saved.contentHash) {
-      const okAnchor = await send(
-        api.tx.referenda.setMetadata(refIndex, saved.contentHash),
+      const anchored = await anchorReferendumMetadata(
+        api,
+        refIndex,
+        saved.contentHash,
+        saved.payloadHex,
+        send,
+        (stage) => {
+          if (stage === "preimage") setExec("metadata-preimage", "active");
+          else {
+            setExec("metadata-preimage", "done");
+            setExec("anchor", "active");
+          }
+        },
       );
-      setExec("anchor", okAnchor ? "done" : "error");
-      if (!okAnchor) {
+      setExec(
+        "metadata-preimage",
+        anchored.ok || anchored.stage === "metadata" ? "done" : "error",
+        anchored.ok && anchored.preimage === "existing" ? "Already on chain" : undefined,
+      );
+      setExec("anchor", anchored.ok ? "done" : anchored.stage === "metadata" ? "error" : "todo");
+      if (!anchored.ok) {
         setExecError(
-          "Anchoring failed (the description is still saved). You can retry from the referendum page.",
+          anchored.stage === "preimage"
+            ? "Registering the description preimage failed (the description is still saved). You can retry from the referendum page."
+            : "Anchoring failed (the description is still saved). You can retry from the referendum page.",
         );
         return;
       }
     } else {
+      setExec("metadata-preimage", "skipped");
       setExec("anchor", "skipped");
     }
   }
