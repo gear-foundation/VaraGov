@@ -10,7 +10,7 @@ import { Logo, LogoMark } from "@/components/Logo";
 import { BlockTicker } from "@/components/BlockTicker";
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   useEffect(() => {
     // Sync with the class the inline <head> script set before hydration;
     // reading document during render would cause a hydration mismatch.

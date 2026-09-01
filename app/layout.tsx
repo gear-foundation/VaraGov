@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   description: "OpenGov governance interface for Vara Network",
 };
 
-const themeInit = `try{if(localStorage.theme==="light")document.documentElement.classList.remove("dark")}catch(e){}`;
+const themeInit = `try{if(localStorage.theme==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

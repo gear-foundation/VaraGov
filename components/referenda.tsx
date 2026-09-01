@@ -64,7 +64,10 @@ export function StatusPill({ phase }: { phase: Phase }) {
 export function TrackBadge({ track }: { track: TrackInfo | undefined }) {
   if (!track) return null;
   return (
-    <span className="text-[11px] uppercase tracking-[0.14em] text-muted">
+    <span
+      className="block truncate text-[11px] uppercase tracking-[0.14em] text-muted"
+      title={track.displayName}
+    >
       {track.displayName}
     </span>
   );
@@ -121,22 +124,22 @@ export function ReferendumRow({
   return (
     <Link
       href={`/referenda/${r.index}`}
-      className="row-hover anim-rise group flex items-baseline gap-4 px-4 py-4 sm:gap-6 sm:px-6"
+      className="row-hover anim-rise group grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-4 px-4 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_13rem] sm:gap-x-6 sm:px-6"
       style={{ ["--stagger" as string]: `${stagger}ms` }}
     >
-      <span className="row-index display tnum w-10 shrink-0 text-right text-[22px] leading-none text-muted/60 sm:w-12 sm:text-2xl">
+      <span className="row-index display tnum text-right text-[22px] leading-none text-muted/60 sm:text-2xl">
         {r.index}
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="display row-title inline text-[17px] leading-snug font-medium sm:text-lg">
           {heading}
         </h3>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="mt-2 grid grid-cols-[7.75rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 md:grid-cols-[7.75rem_10rem_minmax(0,1fr)]">
           <StatusPill phase={r.phase} />
           <TrackBadge track={track} />
           {r.proposer && (
             <span
-              className="tnum hidden text-xs text-muted/80 md:inline"
+              className="tnum hidden truncate text-xs text-muted/80 md:block"
               title={r.proposer}
             >
               {shortAddress(r.proposer)}
@@ -144,7 +147,7 @@ export function ReferendumRow({
           )}
         </div>
       </div>
-      <div className="hidden w-52 shrink-0 self-center sm:block">
+      <div className="hidden min-w-0 pt-1 sm:block">
         {r.tally ? (
           <TallyBar ayes={r.tally.ayes} nays={r.tally.nays} stagger={stagger + 150} />
         ) : r.decidedAt !== null ? (
