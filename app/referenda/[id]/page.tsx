@@ -101,6 +101,47 @@ function readableRemark(call: {
   }
 }
 
+function HighlightedJson({ value, beautified }: { value: unknown; beautified: boolean }) {
+  const json = JSON.stringify(value, null, beautified ? 2 : undefined);
+  const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(json)) !== null) {
+    if (match.index > cursor) parts.push(json.slice(cursor, match.index));
+    const isKey = Boolean(match[2]);
+    const isString = Boolean(match[1]);
+    parts.push(
+      <span
+        key={`${match.index}-${match[0]}`}
+        className={
+          isKey
+            ? "text-accent-ink"
+            : isString
+              ? "text-aye"
+              : "text-warn"
+        }
+      >
+        {match[1] ?? match[0]}
+      </span>,
+    );
+    if (match[2]) parts.push(match[2]);
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < json.length) parts.push(json.slice(cursor));
+
+  return (
+    <pre
+      tabIndex={0}
+      aria-label={beautified ? "Beautified proposal call JSON" : "Compact proposal call JSON"}
+      className="tnum max-h-96 overflow-auto rounded-lg border border-line bg-surface-2 p-3 text-xs leading-5 whitespace-pre"
+    >
+      <code>{parts}</code>
+    </pre>
+  );
+}
+
 export default function ReferendumPage({
   params,
 }: {
@@ -128,6 +169,16 @@ export default function ReferendumPage({
       : ref;
   const { data: call } = useDecodedCall(refForCall);
   const remark = readableRemark(call);
+  const callJson = call
+    ? {
+        section: call.section,
+        method: call.method,
+        args:
+          remark && call.section === "system" && call.method === "remark"
+            ? { ...call.args, remark }
+            : call.args,
+      }
+    : null;
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid referendum index.</p>;
@@ -264,36 +315,8 @@ export default function ReferendumPage({
               </label>
             )}
           </div>
-          {call ? (
-            <div className="text-sm">
-              {callBeautified ? (
-                <>
-                  <code className="rounded bg-surface-2 px-1.5 py-0.5">
-                    {call.section}.{call.method}
-                  </code>
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <tbody>
-                        {Object.entries(call.args).map(([k, v]) => (
-                          <tr key={k} className="border-t border-line">
-                            <td className="py-1.5 pr-4 align-top text-muted">{k}</td>
-                            <td className="tnum break-all py-1.5">{v}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              ) : (
-                <pre className="tnum overflow-x-auto rounded-lg bg-surface-2 p-3 text-xs whitespace-pre">
-                  {JSON.stringify({
-                    section: call.section,
-                    method: call.method,
-                    args: call.args,
-                  })}
-                </pre>
-              )}
-            </div>
+          {callJson ? (
+            <HighlightedJson value={callJson} beautified={callBeautified} />
           ) : ref.proposalHash ? (
             <p className="tnum break-all text-xs text-muted">
               Preimage {ref.proposalHash} (
