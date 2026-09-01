@@ -101,6 +101,40 @@ function readableRemark(call: {
   }
 }
 
+function expandEmbeddedJson(value: unknown, depth = 0): unknown {
+  if (depth >= 8) return value;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (
+      !((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith("[") && trimmed.endsWith("]")))
+    ) {
+      return value;
+    }
+    try {
+      return expandEmbeddedJson(JSON.parse(trimmed), depth + 1);
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => expandEmbeddedJson(item, depth + 1));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        expandEmbeddedJson(item, depth + 1),
+      ]),
+    );
+  }
+
+  return value;
+}
+
 function HighlightedJson({ value, beautified }: { value: unknown; beautified: boolean }) {
   const json = JSON.stringify(value, null, beautified ? 2 : undefined);
   const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
@@ -135,7 +169,9 @@ function HighlightedJson({ value, beautified }: { value: unknown; beautified: bo
     <pre
       tabIndex={0}
       aria-label={beautified ? "Beautified proposal call JSON" : "Compact proposal call JSON"}
-      className="tnum max-h-96 overflow-auto rounded-lg border border-line bg-surface-2 p-3 text-xs leading-5 whitespace-pre"
+      className={`tnum max-h-96 overflow-auto rounded-lg border border-line bg-surface-2 p-3 text-xs leading-5 ${
+        beautified ? "break-words whitespace-pre-wrap" : "whitespace-pre"
+      }`}
     >
       <code>{parts}</code>
     </pre>
@@ -175,8 +211,8 @@ export default function ReferendumPage({
         method: call.method,
         args:
           remark && call.section === "system" && call.method === "remark"
-            ? { ...call.args, remark }
-            : call.args,
+            ? expandEmbeddedJson({ ...call.args, remark })
+            : expandEmbeddedJson(call.args),
       }
     : null;
 
