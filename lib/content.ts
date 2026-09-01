@@ -75,8 +75,12 @@ export async function signAndPost(
   url: string,
   payload: SimaPayload,
   account: InjectedAccountWithMeta,
-): Promise<{ ok: true; contentHash?: string; id?: string } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; contentHash?: string; id?: string; payloadHex: string }
+  | { ok: false; error: string }
+> {
   const payloadJson = buildPayloadJson(payload);
+  const payloadHex = stringToHex(payloadJson);
   try {
     const { web3FromSource } = await import("@polkadot/extension-dapp");
     const injector = await web3FromSource(account.meta.source);
@@ -88,7 +92,7 @@ export async function signAndPost(
     }
     const { signature } = await injector.signer.signRaw({
       address: account.address,
-      data: stringToHex(payloadJson),
+      data: payloadHex,
       type: "bytes",
     });
     const res = await fetch(url, {
@@ -98,7 +102,7 @@ export async function signAndPost(
     });
     const json = await res.json();
     if (!res.ok) return { ok: false, error: json.error ?? `HTTP ${res.status}` };
-    return { ok: true, ...json };
+    return { ok: true, ...json, payloadHex };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
