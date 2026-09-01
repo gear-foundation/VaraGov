@@ -110,6 +110,7 @@ export default function ReferendumPage({
   const index = Number(id);
   const [voteOpen, setVoteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [callBeautified, setCallBeautified] = useState(true);
   const { account } = useWallet();
   const { data: content } = useContent(index);
   const { finalizedNumber } = useApi();
@@ -249,24 +250,49 @@ export default function ReferendumPage({
         </section>
 
         <section className="mt-6 panel p-4">
-          <h2 className="label-serif mb-2">Proposal call</h2>
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <h2 className="label-serif">Proposal call</h2>
+            {call && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted select-none">
+                <input
+                  type="checkbox"
+                  checked={callBeautified}
+                  onChange={(event) => setCallBeautified(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-accent-ink"
+                />
+                JSON Beautify
+              </label>
+            )}
+          </div>
           {call ? (
             <div className="text-sm">
-              <code className="rounded bg-surface-2 px-1.5 py-0.5">
-                {call.section}.{call.method}
-              </code>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-xs">
-                  <tbody>
-                    {Object.entries(call.args).map(([k, v]) => (
-                      <tr key={k} className="border-t border-line">
-                        <td className="py-1.5 pr-4 align-top text-muted">{k}</td>
-                        <td className="tnum break-all py-1.5">{v}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {callBeautified ? (
+                <>
+                  <code className="rounded bg-surface-2 px-1.5 py-0.5">
+                    {call.section}.{call.method}
+                  </code>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {Object.entries(call.args).map(([k, v]) => (
+                          <tr key={k} className="border-t border-line">
+                            <td className="py-1.5 pr-4 align-top text-muted">{k}</td>
+                            <td className="tnum break-all py-1.5">{v}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <pre className="tnum overflow-x-auto rounded-lg bg-surface-2 p-3 text-xs whitespace-pre">
+                  {JSON.stringify({
+                    section: call.section,
+                    method: call.method,
+                    args: call.args,
+                  })}
+                </pre>
+              )}
             </div>
           ) : ref.proposalHash ? (
             <p className="tnum break-all text-xs text-muted">
