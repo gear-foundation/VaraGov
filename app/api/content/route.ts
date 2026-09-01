@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/db";
 import { getServerApi } from "@/lib/server/chain";
 import { verifySimaMessage } from "@/lib/server/verify";
+import { lockReferendumContent } from "@/lib/server/advisory-lock";
 import { parseReferendumInfo } from "@/lib/chain/referenda";
 
 export async function GET() {
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
 
   const stored = await prisma.$transaction(async (tx) => {
     // Prevent a delayed/replayed request from overwriting a newer signed version.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${payload.refIndex})`;
+    await lockReferendumContent(tx, payload.refIndex);
     const current = await tx.referendum.findUnique({
       where: { index: payload.refIndex },
       select: { contentPayload: true },

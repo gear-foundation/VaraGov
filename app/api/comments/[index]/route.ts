@@ -3,6 +3,7 @@ import { BN } from "@polkadot/util";
 import { prisma } from "@/lib/server/db";
 import { getServerApi } from "@/lib/server/chain";
 import { verifySimaMessage } from "@/lib/server/verify";
+import { lockCommentAuthor } from "@/lib/server/advisory-lock";
 import { parseReferendumInfo } from "@/lib/chain/referenda";
 
 const RATE_LIMIT_PER_HOUR = 10;
@@ -78,7 +79,7 @@ export async function POST(
   try {
     const result = await prisma.$transaction(async (tx) => {
       // Serialize writes per author so concurrent requests cannot bypass the rate limit.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${address}, 0))`;
+      await lockCommentAuthor(tx, address);
 
       if (payload.action === "edit_comment") {
         if (!payload.commentId) return { error: "commentId is required.", status: 400 };
@@ -93,6 +94,9 @@ export async function POST(
         if (typeof oldTimestamp === "number" && oldTimestamp >= payload.timestamp) {
           return { error: "This edit is older than the stored comment.", status: 409 };
         }
+        await tx.commentSignature.create({
+          data: { signature, commentId: target.id },
+        });
         await tx.comment.update({
           where: { id: target.id },
           data: {
@@ -141,6 +145,9 @@ export async function POST(
           replyToId: payload.replyTo ?? null,
         },
         select: { id: true },
+      });
+      await tx.commentSignature.create({
+        data: { signature, commentId: comment.id },
       });
       return { id: comment.id };
     });
