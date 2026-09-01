@@ -1,5 +1,4 @@
-// The VaraGov seal: a double-ringed mark with a V cut like a nib stroke —
-// part parliamentary seal, part ballot check.
+// Compact VaraGov mark. Its dimensions stay stable across the header and dialogs.
 export function LogoMark({ size = 30 }: { size?: number }) {
   return (
     <svg
@@ -35,8 +34,8 @@ export function Logo() {
   return (
     <span className="flex items-center gap-2.5">
       <LogoMark />
-      <span className="display text-[19px] font-semibold">
-        Vara<span className="text-accent-ink italic">Gov</span>
+      <span className="display text-[19px] font-bold">
+        Vara<span className="text-accent-ink">Gov</span>
       </span>
     </span>
   );
