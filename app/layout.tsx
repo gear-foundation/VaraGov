@@ -15,8 +15,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VaraGov",
+  metadataBase: new URL("https://opengov.vara.network"),
+  title: {
+    default: "VaraGov",
+    template: "%s | VaraGov",
+  },
   description: "OpenGov governance interface for Vara Network",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "VaraGov",
+    title: "VaraGov",
+    description: "Open governance for Vara Network",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VaraGov",
+    description: "Open governance for Vara Network",
+  },
 };
 
 const themeInit = `try{if(localStorage.theme==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
