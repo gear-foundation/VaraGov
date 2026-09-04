@@ -4,7 +4,6 @@ import { use } from "react";
 import Link from "next/link";
 import { ArrowLeft, BadgeCheck } from "lucide-react";
 import { CallViewer } from "@/components/CallViewer";
-import { GovernanceNav } from "@/components/GovernanceNav";
 import { StatusPill, TallyBar, TrackBadge } from "@/components/referenda";
 import {
   useDecodedCall,
@@ -40,10 +39,9 @@ export default function FellowshipReferendumPage({
 
   return (
     <div>
-      <GovernanceNav />
       <Link
         href="/fellowship"
-        className="mt-6 inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-ink"
+        className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-ink"
       >
         <ArrowLeft size={14} aria-hidden="true" />
         Fellowship referenda

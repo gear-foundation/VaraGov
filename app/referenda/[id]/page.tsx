@@ -35,7 +35,6 @@ import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
 import { CurveChart } from "@/components/CurveChart";
 import { CallViewer } from "@/components/CallViewer";
-import { GovernanceNav } from "@/components/GovernanceNav";
 import type { DecodedCallNode } from "@/lib/chain/call-decoder";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
@@ -169,8 +168,7 @@ export default function ReferendumPage({
 
   return (
     <div>
-      <GovernanceNav />
-      <div className="anim-rise mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="anim-rise grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="relative min-w-0">
         {!isOngoing && (
           <span
