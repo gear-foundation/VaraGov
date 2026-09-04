@@ -34,6 +34,9 @@ import {
 import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
 import { CurveChart } from "@/components/CurveChart";
+import { CallViewer } from "@/components/CallViewer";
+import { GovernanceNav } from "@/components/GovernanceNav";
+import type { DecodedCallNode } from "@/lib/chain/call-decoder";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { api } = useApi();
@@ -81,14 +84,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function readableRemark(call: {
-  section: string;
-  method: string;
-  args: Record<string, string>;
-} | null | undefined) {
+function readableRemark(call: DecodedCallNode | null | undefined) {
   if (call?.section !== "system" || call.method !== "remark") return null;
-  const value = call.args.remark;
-  if (!value) return null;
+  const value = call.args.find((arg) => arg.name === "remark")?.value;
+  if (typeof value !== "string" || !value) return null;
   if (!isHex(value)) return value;
 
   try {
@@ -101,83 +100,6 @@ function readableRemark(call: {
   }
 }
 
-function expandEmbeddedJson(value: unknown, depth = 0): unknown {
-  if (depth >= 8) return value;
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (
-      !((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-        (trimmed.startsWith("[") && trimmed.endsWith("]")))
-    ) {
-      return value;
-    }
-    try {
-      return expandEmbeddedJson(JSON.parse(trimmed), depth + 1);
-    } catch {
-      return value;
-    }
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => expandEmbeddedJson(item, depth + 1));
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        expandEmbeddedJson(item, depth + 1),
-      ]),
-    );
-  }
-
-  return value;
-}
-
-function HighlightedJson({ value, beautified }: { value: unknown; beautified: boolean }) {
-  const json = JSON.stringify(value, null, beautified ? 2 : undefined);
-  const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
-  const parts: React.ReactNode[] = [];
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(json)) !== null) {
-    if (match.index > cursor) parts.push(json.slice(cursor, match.index));
-    const isKey = Boolean(match[2]);
-    const isString = Boolean(match[1]);
-    parts.push(
-      <span
-        key={`${match.index}-${match[0]}`}
-        className={
-          isKey
-            ? "text-accent-ink"
-            : isString
-              ? "text-aye"
-              : "text-warn"
-        }
-      >
-        {match[1] ?? match[0]}
-      </span>,
-    );
-    if (match[2]) parts.push(match[2]);
-    cursor = pattern.lastIndex;
-  }
-  if (cursor < json.length) parts.push(json.slice(cursor));
-
-  return (
-    <pre
-      tabIndex={0}
-      aria-label={beautified ? "Beautified proposal call JSON" : "Compact proposal call JSON"}
-      className={`tnum max-h-96 overflow-auto rounded-lg border border-line bg-surface-2 p-3 text-xs leading-5 ${
-        beautified ? "break-words whitespace-pre-wrap" : "whitespace-pre"
-      }`}
-    >
-      <code>{parts}</code>
-    </pre>
-  );
-}
-
 export default function ReferendumPage({
   params,
 }: {
@@ -187,7 +109,6 @@ export default function ReferendumPage({
   const index = Number(id);
   const [voteOpen, setVoteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [callBeautified, setCallBeautified] = useState(true);
   const { account } = useWallet();
   const { data: content } = useContent(index);
   const { finalizedNumber } = useApi();
@@ -204,17 +125,7 @@ export default function ReferendumPage({
         }
       : ref;
   const { data: call } = useDecodedCall(refForCall);
-  const remark = readableRemark(call);
-  const callJson = call
-    ? {
-        section: call.section,
-        method: call.method,
-        args:
-          remark && call.section === "system" && call.method === "remark"
-            ? expandEmbeddedJson({ ...call.args, remark })
-            : expandEmbeddedJson(call.args),
-      }
-    : null;
+  const remark = readableRemark(call?.root);
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid referendum index.</p>;
@@ -257,7 +168,9 @@ export default function ReferendumPage({
     support >= supportThreshold;
 
   return (
-    <div className="anim-rise grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div>
+      <GovernanceNav />
+      <div className="anim-rise mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="relative min-w-0">
         {!isOngoing && (
           <span
@@ -337,22 +250,9 @@ export default function ReferendumPage({
         </section>
 
         <section className="mt-6 panel p-4">
-          <div className="mb-2 flex items-center justify-between gap-4">
-            <h2 className="label-serif">Proposal call</h2>
-            {call && (
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted select-none">
-                <input
-                  type="checkbox"
-                  checked={callBeautified}
-                  onChange={(event) => setCallBeautified(event.target.checked)}
-                  className="h-3.5 w-3.5 accent-accent-ink"
-                />
-                JSON Beautify
-              </label>
-            )}
-          </div>
-          {callJson ? (
-            <HighlightedJson value={callJson} beautified={callBeautified} />
+          <h2 className="label-serif mb-3">Proposal call</h2>
+          {call ? (
+            <CallViewer root={call.root} />
           ) : ref.proposalHash ? (
             <p className="tnum break-all text-xs text-muted">
               Preimage {ref.proposalHash} (
@@ -486,7 +386,8 @@ export default function ReferendumPage({
             />
           </section>
         )}
-      </aside>
+        </aside>
+      </div>
     </div>
   );
 }

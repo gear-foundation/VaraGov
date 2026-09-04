@@ -3,8 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { BN } from "@polkadot/util";
 import { useApi } from "./ApiProvider";
-import { fetchAllReferenda, decodeProposal, parseReferendumInfo, type Referendum } from "./referenda";
-import { getTracks, type TrackInfo } from "./tracks";
+import {
+  fetchAllFellowshipReferenda,
+  fetchAllReferenda,
+  decodeProposal,
+  parseReferendumInfo,
+  type Referendum,
+} from "./referenda";
+import { getFellowshipTracks, getTracks, type TrackInfo } from "./tracks";
 
 export function useTracks(): TrackInfo[] | undefined {
   const { api } = useApi();
@@ -27,12 +33,46 @@ export function useReferendaList() {
   });
 }
 
+export function useFellowshipTracks(): TrackInfo[] | undefined {
+  const { api } = useApi();
+  const { data } = useQuery({
+    queryKey: ["fellowshipTracks"],
+    queryFn: () => getFellowshipTracks(api!),
+    enabled: !!api,
+    staleTime: Infinity,
+  });
+  return data;
+}
+
+export function useFellowshipReferendaList() {
+  const { api } = useApi();
+  return useQuery({
+    queryKey: ["fellowshipReferenda"],
+    queryFn: () => fetchAllFellowshipReferenda(api!),
+    enabled: !!api,
+    refetchInterval: 12_000,
+  });
+}
+
 export function useReferendum(index: number) {
   const { api } = useApi();
   return useQuery({
     queryKey: ["referendum", index],
     queryFn: async () => {
       const info = await api!.query.referenda.referendumInfoFor(index);
+      return parseReferendumInfo(index, info);
+    },
+    enabled: !!api && Number.isInteger(index),
+    refetchInterval: 6_000,
+  });
+}
+
+export function useFellowshipReferendum(index: number) {
+  const { api } = useApi();
+  return useQuery({
+    queryKey: ["fellowshipReferendum", index],
+    queryFn: async () => {
+      const info = await api!.query.fellowshipReferenda.referendumInfoFor(index);
       return parseReferendumInfo(index, info);
     },
     enabled: !!api && Number.isInteger(index),

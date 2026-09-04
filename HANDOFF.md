@@ -25,7 +25,7 @@ Acceptance criteria live in SPEC.md §8. What was verified live against Vara mai
 | Phase | What was built | How it was verified |
 |---|---|---|
 | 0. Skeleton | Next.js 16 (App Router, TS), Tailwind 4, RPC connection with fallbacks, dark/light themes, a live finalized-block number in the header | `npm run build` green; the block ticks live |
-| 1. Explorer | `/referenda` (tabs, track filter), `/referenda/[id]` (phases, tally, curves, call decoder via preimage) — all straight from the chain | all 78 referenda open; track parameters match the wiki |
+| 1. Explorer | `/referenda` + `/referenda/[id]` for token holders; `/fellowship` + `/fellowship/referenda/[id]` for the ranked collective; tabs, track filters and decoded calls come straight from the chain | token-holder explorer verified against the historical set; Fellowship list loaded all 72 entries and detail #71 from mainnet RPC |
 | 2. Wallets + voting | connect modal (polkadot.js/SubWallet/Talisman/Nova via `@polkadot/extension-dapp`), Aye/Nay/Abstain vote popup + conviction, `/votes` (My votes, removeVote, unlock), decision-deposit button | UI states verified in the browser; **the signature itself was NOT exercised with a real wallet — see "What remains"** |
 | 3. Content + comments | Postgres + Prisma 7, SIMA: every title/comment is a signed JSON message; the server checks the signature, timestamp ±10 min, a proposer gate for titles, anti-spam (balance ≥ ED + 10/hour rate limit) | `scripts/check-sima.mts` — 5 scenarios against a live dev server and the live chain, all passed |
 | 4. Creation wizard | `/new`: 5 steps (type → track with auto-suggestion → text → review with costs → execution chain: proposal preimage → submit → SIMA → metadata preimage → setMetadata) | Mainnet E2E completed on referendum #80: both preimages, submit, signed SIMA content, metadata, decision deposit, vote/change/remove/unlock, and signed comment create/edit/replay rejection |
@@ -67,6 +67,8 @@ Caddy/nginx with TLS in front.
 app/
   referenda/page.tsx        list (client-side, live from the chain)
   referenda/[id]/page.tsx   details: tally, curves, history, comments, vote
+  fellowship/page.tsx       ranked-collective referenda list (live RPC)
+  fellowship/referenda/…    read-only Fellowship referendum details
   new/page.tsx              creation wizard (5 steps, all logic in one file)
   votes/page.tsx            My votes: votes/delegations/locks per track
   api/content/…             GET titles, POST provide_context (SIMA)
@@ -145,7 +147,8 @@ Priority (before production):
    cursor lag.
 
 Deliberately deferred (v2, see SPEC §2): delegation UI (read-only for now),
-fellowship, a treasury dashboard, notifications, full-text search, event-based
+Fellowship voting/creation and historical indexing, a treasury dashboard,
+notifications, full-text search, event-based
 convictionVoting parsing (votes come from periodic `votingFor` snapshots every
 ~100 blocks — sufficient at Vara's scale), importing the 78 old titles from
 Subsquare (an optional step; legal caveats in SPEC §1.4).

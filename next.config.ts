@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  serverExternalPackages: ["sails-js", "sails-js-parser"],
   turbopack: {
     root: process.cwd(),
   },

@@ -1,5 +1,12 @@
 import type { ApiPromise } from "@polkadot/api";
 import { BN } from "@polkadot/util";
+import {
+  decodeCallTree,
+  type CallRegistry,
+  type DecodedCallNode,
+} from "./call-decoder";
+import { resolveProgramIdlEntry } from "./idl-registry";
+import { enrichSailsMessages } from "./sails-decoder";
 
 export type Phase =
   | "preparing"
@@ -77,7 +84,8 @@ export function parseReferendumInfo(index: number, info: any): Referendum | null
     base.tally = {
       ayes: o.tally.ayes.toBn(),
       nays: o.tally.nays.toBn(),
-      support: o.tally.support.toBn(),
+      // Fellowship uses bareAyes instead of token issuance support.
+      support: (o.tally.support ?? o.tally.bareAyes).toBn(),
     };
     if (o.deciding.isSome) {
       const d = o.deciding.unwrap();
@@ -127,10 +135,21 @@ export async function fetchAllReferenda(api: ApiPromise): Promise<Referendum[]> 
   return out.sort((a, b) => b.index - a.index);
 }
 
+export async function fetchAllFellowshipReferenda(
+  api: ApiPromise,
+): Promise<Referendum[]> {
+  const entries = await api.query.fellowshipReferenda.referendumInfoFor.entries();
+  const out: Referendum[] = [];
+  for (const [key, info] of entries) {
+    const index = (key.args[0] as any).toNumber();
+    const parsed = parseReferendumInfo(index, info);
+    if (parsed) out.push(parsed);
+  }
+  return out.sort((a, b) => b.index - a.index);
+}
+
 export type DecodedCall = {
-  section: string;
-  method: string;
-  args: Record<string, string>;
+  root: DecodedCallNode;
   hex: string;
 } | null;
 
@@ -149,14 +168,10 @@ export async function decodeProposal(
     }
     if (!hex) return null;
     const call = api.registry.createType("Call", hex);
-    const args: Record<string, string> = {};
-    call.meta.args.forEach((meta, i) => {
-      args[meta.name.toString()] = call.args[i].toString();
-    });
+    const root = decodeCallTree(api.registry as unknown as CallRegistry, call.toJSON());
+    await enrichSailsMessages(root, resolveProgramIdlEntry);
     return {
-      section: call.section,
-      method: call.method,
-      args,
+      root,
       hex,
     };
   } catch {

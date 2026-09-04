@@ -113,17 +113,23 @@ export function ReferendumRow({
   r,
   track,
   title,
+  hrefBase = "/referenda",
+  fallbackLabel,
   stagger = 0,
 }: {
   r: Referendum;
   track: TrackInfo | undefined;
   title?: string | null;
+  hrefBase?: string;
+  fallbackLabel?: string;
   stagger?: number;
 }) {
-  const heading = title ?? `Referendum #${r.index}`;
+  const heading =
+    title ??
+    `${track ? `[${track.displayName}] ` : fallbackLabel ? `[${fallbackLabel}] ` : ""}Referendum #${r.index}`;
   return (
     <Link
-      href={`/referenda/${r.index}`}
+      href={`${hrefBase}/${r.index}`}
       className="row-hover anim-rise group grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-4 px-4 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_13rem] sm:gap-x-6 sm:px-6"
       style={{ ["--stagger" as string]: `${stagger}ms` }}
     >

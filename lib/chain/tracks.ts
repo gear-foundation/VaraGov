@@ -46,8 +46,7 @@ export function displayTrackName(name: string): string {
     .join(" ");
 }
 
-export function getTracks(api: ApiPromise): TrackInfo[] {
-  const raw = api.consts.referenda.tracks as any;
+function parseTracks(raw: any): TrackInfo[] {
   return raw.map((entry: any) => {
     // Both shapes exist across runtimes: tuple [id, info] and struct {id, info}
     const id = entry[0] ?? entry.id;
@@ -67,6 +66,14 @@ export function getTracks(api: ApiPromise): TrackInfo[] {
       minSupport: parseCurve(info.minSupport),
     };
   });
+}
+
+export function getTracks(api: ApiPromise): TrackInfo[] {
+  return parseTracks(api.consts.referenda.tracks as any);
+}
+
+export function getFellowshipTracks(api: ApiPromise): TrackInfo[] {
+  return parseTracks(api.consts.fellowshipReferenda.tracks as any);
 }
 
 // Origin for referenda.submit: root track uses system origin, others the Origins enum.

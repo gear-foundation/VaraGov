@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Moon, Plus, Sun } from "lucide-react";
+import { ListChecks, Moon, Plus, Sun } from "lucide-react";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { WalletButton } from "@/components/WalletButton";
 import { Logo, LogoMark } from "@/components/Logo";
@@ -57,13 +57,26 @@ function BlockIndicator() {
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({
+  href,
+  children,
+  activePrefixes = [],
+}: {
+  href: string;
+  children: React.ReactNode;
+  activePrefixes?: string[];
+}) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + "/");
+  const active =
+    pathname === href ||
+    pathname.startsWith(href + "/") ||
+    activePrefixes.some(
+      (prefix) => pathname === prefix || pathname.startsWith(prefix + "/"),
+    );
   return (
     <Link
       href={href}
-      className={`relative whitespace-nowrap rounded-sm px-2.5 py-1.5 text-sm transition-colors duration-150 sm:px-3 ${
+      className={`relative flex items-center whitespace-nowrap rounded-sm px-2 py-1.5 text-sm transition-colors duration-150 sm:px-3 ${
         active ? "font-medium text-ink" : "text-muted hover:text-ink"
       }`}
     >
@@ -76,9 +89,12 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 export function Header() {
+  const pathname = usePathname();
+  const isFellowship = pathname === "/fellowship" || pathname.startsWith("/fellowship/");
+
   return (
     <header className="rule-double sticky top-0 z-(--z-sticky) bg-bg/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:gap-4 sm:px-4">
+      <div className="relative mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:gap-4 sm:px-4">
         <Link href="/referenda" aria-label="VaraGov home" className="sm:mr-2">
           <span className="sm:hidden">
             <LogoMark size={26} />
@@ -88,15 +104,23 @@ export function Header() {
           </span>
         </Link>
         <nav className="flex items-center gap-0.5 sm:gap-1">
-          <NavLink href="/referenda">Referenda</NavLink>
-          <NavLink href="/votes">My votes</NavLink>
+          <NavLink href="/referenda" activePrefixes={["/fellowship"]}>
+            <span className="sm:hidden">Gov</span>
+            <span className="hidden sm:inline">Governance</span>
+          </NavLink>
+          <NavLink href="/votes">
+            <ListChecks size={17} className="sm:hidden" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">My votes</span>
+          </NavLink>
         </nav>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+        <div className="ml-auto flex items-center gap-1.5 max-sm:absolute max-sm:right-3 sm:gap-2.5">
           <BlockIndicator />
-          <Link href="/new" className="btn btn-primary h-9 !px-3.5">
-            <Plus size={15} strokeWidth={2.5} />
-            <span className="hidden sm:inline">New proposal</span>
-          </Link>
+          {!isFellowship && (
+            <Link href="/new" className="btn btn-primary h-9 !px-3.5">
+              <Plus size={15} strokeWidth={2.5} />
+              <span className="hidden sm:inline">New proposal</span>
+            </Link>
+          )}
           <WalletButton />
           <ThemeToggle />
         </div>
