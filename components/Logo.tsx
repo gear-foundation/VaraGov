@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 // Compact VaraGov mark. Its dimensions stay stable across the header and dialogs.
 export function LogoMark({ size = 30 }: { size?: number }) {
   return (
@@ -32,11 +34,23 @@ export function LogoMark({ size = 30 }: { size?: number }) {
 
 export function Logo() {
   return (
-    <span className="flex items-center gap-2.5">
-      <LogoMark />
-      <span className="display text-[19px] font-bold">
-        Vara<span className="text-accent-ink">Gov</span>
-      </span>
+    <span className="relative block h-10 w-[102px] overflow-hidden" aria-hidden="true">
+      <Image
+        src="/brand/varagov-wordmark-light.jpg"
+        alt=""
+        width={1150}
+        height={450}
+        priority
+        className="h-10 w-[102px] object-contain dark:hidden"
+      />
+      <Image
+        src="/brand/varagov-wordmark-dark.png"
+        alt=""
+        width={920}
+        height={360}
+        priority
+        className="hidden h-10 w-[102px] object-contain dark:block"
+      />
     </span>
   );
 }
