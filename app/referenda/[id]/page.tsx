@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { hexToString, isHex } from "@polkadot/util";
+import { FilePenLine } from "lucide-react";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
@@ -36,6 +37,7 @@ import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
 import { CurveChart } from "@/components/CurveChart";
 import { CallViewer } from "@/components/CallViewer";
 import type { DecodedCallNode } from "@/lib/chain/call-decoder";
+import { sameAccount } from "@/lib/chain/address";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { api } = useApi();
@@ -146,6 +148,8 @@ export default function ReferendumPage({
   // For finished referenda track/proposer are pruned from state — the indexer DB has them.
   const trackId = ref.trackId ?? history?.referendum?.trackId ?? null;
   const proposer = ref.proposer ?? history?.referendum?.proposer ?? null;
+  const contentProposer = proposer ?? content?.proposer ?? null;
+  const canEditContent = sameAccount(account?.address, contentProposer);
   const track = tracks?.find((t) => t.id === trackId);
   const isOngoing = ONGOING_PHASES.includes(ref.phase);
   const approval = ref.tally ? approvalFraction(ref.tally.ayes, ref.tally.nays) : null;
@@ -221,30 +225,40 @@ export default function ReferendumPage({
         )}
 
         <section className="mt-6">
-          {content?.contentMd ? (
-            <div className="panel p-4">
+          <div
+            className={
+              content?.contentMd || remark
+                ? "panel p-4"
+                : "rounded-[14px] border border-dashed border-line p-4"
+            }
+          >
+            {content?.contentMd ? (
               <Markdown dropCap>{content.contentMd}</Markdown>
-            </div>
-          ) : remark ? (
-            <div className="panel p-4">
-              <h2 className="label-serif mb-2">Remark</h2>
-              <p className="whitespace-pre-wrap text-sm break-words">{remark}</p>
-            </div>
-          ) : (
-            <div className="rounded-[14px] border border-dashed border-line p-4 text-sm text-muted">
-              No description has been provided yet.
-            </div>
-          )}
-          {account &&
-            (account.address === proposer ||
-              (content?.proposer && account.address === content.proposer)) && (
+            ) : remark ? (
+              <>
+                <h2 className="label-serif mb-2">Remark</h2>
+                <p className="whitespace-pre-wrap text-sm break-words">{remark}</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">No description has been provided yet.</p>
+            )}
+
+            {canEditContent ? (
               <button
                 onClick={() => setEditOpen(true)}
-                className="mt-2 text-sm font-medium text-accent-ink hover:underline"
+                className="btn btn-soft mt-4"
               >
+                <FilePenLine size={15} />
                 {content?.title ? "Edit title & description" : "Add title & description"}
               </button>
-            )}
+            ) : !content?.title ? (
+              <p className="mt-3 text-xs text-muted">
+                {account
+                  ? "Only the on-chain proposer can add the title and description."
+                  : "Connect the proposer wallet to add the title and description."}
+              </p>
+            ) : null}
+          </div>
         </section>
 
         <section className="mt-6 panel p-4">

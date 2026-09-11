@@ -4,6 +4,7 @@ import { getServerApi } from "@/lib/server/chain";
 import { verifySimaMessage } from "@/lib/server/verify";
 import { lockReferendumContent } from "@/lib/server/advisory-lock";
 import { parseReferendumInfo } from "@/lib/chain/referenda";
+import { sameAccount } from "@/lib/chain/address";
 
 export async function GET() {
   // Per-referendum meta map for the list: off-chain titles plus the trackId
@@ -46,13 +47,25 @@ export async function POST(req: Request) {
       { status: 404 },
     );
   }
-  if (!ref.proposer) {
+  // Finished referendum state no longer contains the submission deposit (and
+  // therefore its proposer). The worker/backfill preserves that on-chain value.
+  const storedReferendum = !ref.proposer
+    ? await prisma.referendum.findUnique({
+        where: { index: payload.refIndex },
+        select: { proposer: true },
+      })
+    : null;
+  const proposer = ref.proposer ?? storedReferendum?.proposer ?? null;
+  if (!proposer) {
     return NextResponse.json(
-      { error: "On-chain proposer is unknown for this referendum (deposit refunded); cannot verify authorship." },
+      {
+        error:
+          "On-chain proposer is unknown for this referendum (deposit refunded); cannot verify authorship.",
+      },
       { status: 403 },
     );
   }
-  if (ref.proposer !== address) {
+  if (!sameAccount(proposer, address)) {
     return NextResponse.json(
       { error: "Only the referendum proposer can edit its title and description." },
       { status: 403 },
@@ -74,7 +87,7 @@ export async function POST(req: Request) {
       create: {
         index: payload.refIndex,
         trackId: ref.trackId,
-        proposer: ref.proposer,
+        proposer,
         status: ref.phase,
         title: payload.title,
         contentMd: payload.content,
