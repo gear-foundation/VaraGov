@@ -20,7 +20,7 @@ import { blake2AsHex } from "@polkadot/util-crypto";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
-import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
+import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { useTracks } from "@/lib/chain/hooks";
 import { useVotingBalance } from "@/lib/chain/voting";
 import { trackOrigin, type TrackInfo } from "@/lib/chain/tracks";
@@ -585,7 +585,7 @@ export default function NewProposalPage() {
             ))}
           </ol>
 
-          {(txStatus.state === "signing" || txStatus.state === "broadcast") && (
+          {isTxPending(txStatus) && (
             <p className="text-sm text-muted">{TX_LABEL[txStatus.state]}</p>
           )}
           {execError && <p className="text-sm text-nay">{execError}</p>}

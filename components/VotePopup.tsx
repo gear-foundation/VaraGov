@@ -8,7 +8,7 @@ import BigNumber from "bignumber.js";
 import { BN } from "@polkadot/util";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
-import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
+import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { CONVICTIONS, useMyVote, useVotingBalance } from "@/lib/chain/voting";
 import { DECIMALS, formatVara, shortAddress } from "@/lib/chain/format";
 import type { Referendum } from "@/lib/chain/referenda";
@@ -48,6 +48,9 @@ export function VotePopup({
   }, [amount]);
 
   const amountTooHigh = planck !== null && balance !== undefined && planck.gt(balance);
+  const transactionPending = isTxPending(status);
+  const transactionFinalized = status.state === "finalized";
+  const transactionLocked = transactionPending || transactionFinalized;
 
   // Every disabled state names its reason (wallet-readiness rule).
   const disabledReason = !account
@@ -58,7 +61,7 @@ export function VotePopup({
         ? "Enter an amount"
         : amountTooHigh
           ? "Amount exceeds your balance"
-          : status.state === "signing" || status.state === "broadcast"
+          : transactionPending
             ? TX_LABEL[status.state]
             : null;
 
@@ -137,7 +140,8 @@ export function VotePopup({
                 </span>
                 <button
                   onClick={() => void removeVote()}
-                  className="font-medium text-nay hover:underline"
+                  disabled={transactionLocked}
+                  className="font-medium text-nay hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Remove
                 </button>
@@ -154,6 +158,7 @@ export function VotePopup({
                   key={t}
                   role="tab"
                   aria-selected={tab === t}
+                  disabled={transactionLocked}
                   onClick={() => {
                     setTab(t);
                     reset();
@@ -178,6 +183,7 @@ export function VotePopup({
               {balance !== undefined && (
                 <button
                   className="tnum float-right font-medium text-accent-ink hover:underline"
+                  disabled={transactionLocked}
                   onClick={() =>
                     setAmount(
                       new BigNumber(balance.toString())
@@ -194,6 +200,7 @@ export function VotePopup({
               id="vote-amount"
               inputMode="decimal"
               value={amount}
+              disabled={transactionLocked}
               onChange={(e) => setAmount(e.target.value.replace(",", "."))}
               placeholder="0.0"
               className={`input tnum mb-4 ${amountTooHigh ? "!border-nay" : ""}`}
@@ -216,6 +223,7 @@ export function VotePopup({
                   min={0}
                   max={6}
                   value={conviction}
+                  disabled={transactionLocked}
                   onChange={(e) => setConviction(Number(e.target.value))}
                   className="w-full accent-(--accent)"
                 />
@@ -246,18 +254,20 @@ export function VotePopup({
             )}
 
             <button
-              onClick={() => void submit()}
-              disabled={!!disabledReason}
+              onClick={transactionFinalized ? onClose : () => void submit()}
+              disabled={!transactionFinalized && !!disabledReason}
               className={`btn w-full ${
-                tab === "Nay" && !disabledReason
+                tab === "Nay" && !disabledReason && !transactionFinalized
                   ? "bg-nay text-white hover:opacity-90"
                   : "btn-primary"
               }`}
             >
-              {disabledReason ??
-                (status.state === "idle" || status.state === "error"
-                  ? `Vote ${tab}`
-                  : TX_LABEL[status.state])}
+              {transactionFinalized
+                ? "Done"
+                : disabledReason ??
+                  (status.state === "idle" || status.state === "error"
+                    ? `Vote ${tab}`
+                    : TX_LABEL[status.state])}
             </button>
           </>
         )}

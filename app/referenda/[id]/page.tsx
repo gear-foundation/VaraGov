@@ -6,7 +6,7 @@ import { hexToString, isHex } from "@polkadot/util";
 import { FilePenLine } from "lucide-react";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
-import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
+import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { VotePopup } from "@/components/VotePopup";
 import { EditContent } from "@/components/EditContent";
 import { Comments } from "@/components/Comments";
@@ -44,7 +44,7 @@ function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { account } = useWallet();
   const { status, send } = useSendTx();
   const queryClient = useQueryClient();
-  const busy = status.state === "signing" || status.state === "broadcast";
+  const busy = isTxPending(status);
   return (
     <div className="mt-2">
       <button

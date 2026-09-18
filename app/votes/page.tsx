@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
-import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
+import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { useTracks } from "@/lib/chain/hooks";
 import { CONVICTIONS } from "@/lib/chain/voting";
 import { formatVara, shortAddress } from "@/lib/chain/format";
@@ -119,7 +119,7 @@ export default function MyVotesPage() {
     );
   }
 
-  const busy = status.state === "signing" || status.state === "broadcast";
+  const busy = isTxPending(status);
   const trackName = (id: number) =>
     tracks?.find((t) => t.id === id)?.displayName ?? `Track ${id}`;
 

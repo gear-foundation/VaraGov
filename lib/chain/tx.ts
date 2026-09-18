@@ -14,6 +14,15 @@ export type TxStatus =
   | { state: "finalized"; blockHash: string }
   | { state: "error"; message: string };
 
+/** A submitted transaction must not be sent again while awaiting finality. */
+export function isTxPending(status: TxStatus): boolean {
+  return (
+    status.state === "signing" ||
+    status.state === "broadcast" ||
+    status.state === "inBlock"
+  );
+}
+
 // Wraps signAndSend with the 4 UI states every write action must expose.
 export function useSendTx() {
   const { account } = useWallet();

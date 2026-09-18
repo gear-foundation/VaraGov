@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
-import { useSendTx, TX_LABEL } from "@/lib/chain/tx";
+import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { signAndPost, type RefContent } from "@/lib/content";
 import { MAX_TITLE } from "@/lib/sima";
 import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
@@ -159,7 +159,7 @@ export function EditContent({
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => void anchor()}
-                    disabled={txStatus.state === "signing" || txStatus.state === "broadcast"}
+                    disabled={isTxPending(txStatus) || txStatus.state === "finalized"}
                     className="btn btn-soft"
                   >
                     {txStatus.state === "idle" || txStatus.state === "error"
