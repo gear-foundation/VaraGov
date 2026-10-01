@@ -4,17 +4,18 @@
 
 /* Vara brand foundation: monochrome surfaces, Geist type and mint accents. */
 :root {
-  --bg: #f3f7f5;
-  --surface: #ffffff;
-  --surface-2: #e7efec;
-  --line: #b7c7c1;
-  --line-strong: #647b72;
-  --ink: #050807;
-  --muted: #354840;
-  --accent: #00ffc4;
-  --accent-ink: #00775c;
-  --accent-soft: #d9fff6;
+  --bg: #dbe7e3;
+  --surface: #f0f5f3;
+  --surface-2: #cfddd8;
+  --line: #91a89f;
+  --line-strong: #4d6a60;
+  --ink: #050c09;
+  --muted: #31483f;
+  --accent: #00dca9;
+  --accent-ink: #005b47;
+  --accent-soft: #bfe4d9;
   --accent-contrast: #001b15;
+  --primary-ink: #f4fffb;
   --aye: #07885f;
   --nay: #c63f4c;
   --abstain: #68736f;
@@ -41,6 +42,7 @@
   --accent-ink: #00ffc4;
   --accent-soft: rgb(0 255 196 / 0.11);
   --accent-contrast: #001b15;
+  --primary-ink: #001b15;
   --aye: #43e6ad;
   --nay: #ff7884;
   --abstain: #a3afab;
@@ -84,9 +86,9 @@ body {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, transparent 0, color-mix(in srgb, var(--line) 20%, transparent) 50%, transparent 100%) top / 100% 1px no-repeat,
-    radial-gradient(circle at 84% 0%, rgb(0 255 196 / 0.065), transparent 30rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 34%, transparent), transparent 22rem);
+    radial-gradient(circle at 84% 0%, rgb(0 220 169 / 0.16), transparent 32rem),
+    radial-gradient(circle at 8% 44%, color-mix(in srgb, var(--accent-ink) 8%, transparent), transparent 28rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-2) 52%, transparent), transparent 58%);
 }
 
 ::selection {
@@ -128,8 +130,8 @@ body {
   border: 1px solid var(--line);
   border-radius: 9px;
   box-shadow:
-    0 1px 0 color-mix(in srgb, var(--ink) 7%, transparent),
-    0 16px 34px -32px rgb(0 0 0 / 0.8);
+    0 1px 0 color-mix(in srgb, var(--ink) 11%, transparent),
+    0 18px 38px -30px color-mix(in srgb, var(--ink) 45%, transparent);
 }
 
 .tally-panel {
@@ -178,17 +180,22 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  border: 1px solid color-mix(in srgb, var(--accent-ink) 72%, var(--line-strong));
+  background: var(--accent-ink);
+  color: var(--primary-ink);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--ink) 22%, transparent);
 }
 .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 4px 20px -8px var(--accent);
+  background: color-mix(in srgb, var(--accent-ink) 88%, var(--ink));
+  box-shadow:
+    0 2px 0 color-mix(in srgb, var(--ink) 26%, transparent),
+    0 8px 20px -14px var(--accent-ink);
 }
 
 .btn-ghost {
   border: 1px solid var(--line);
   color: var(--ink);
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 .btn-ghost:hover:not(:disabled) {
   border-color: var(--line-strong);
@@ -196,17 +203,19 @@ body {
 }
 
 .btn-soft {
-  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent-ink) 38%, var(--line));
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--accent-soft));
   color: var(--accent-ink);
 }
 .btn-soft:hover:not(:disabled) {
-  filter: brightness(1.06);
+  border-color: var(--accent-ink);
+  background: var(--accent-soft);
 }
 
 .input {
   width: 100%;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
   border-radius: 7px;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;

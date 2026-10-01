@@ -93,7 +93,7 @@ export function Header() {
   const isFellowship = pathname === "/fellowship" || pathname.startsWith("/fellowship/");
 
   return (
-    <header className="rule-double sticky top-0 z-(--z-sticky) bg-bg/90 backdrop-blur-md">
+    <header className="rule-double sticky top-0 z-(--z-sticky) bg-surface/90 shadow-[0_8px_24px_-24px_var(--ink)] backdrop-blur-md">
       <div className="relative mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:gap-4 sm:px-4">
         <Link href="/referenda" aria-label="VaraGov home" className="sm:mr-2">
           <span className="sm:hidden">
