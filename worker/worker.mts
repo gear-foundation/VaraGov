@@ -5,6 +5,7 @@ import "dotenv/config";
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import { prisma } from "../lib/server/db";
 import {
+  enrichMissingElectorates,
   TERMINAL_EVENTS,
   handleTerminal,
   recordTallySnapshot,
@@ -68,6 +69,11 @@ async function main() {
     noInitWarn: true,
   });
   console.log(`[worker] connected: ${(await api.rpc.system.chain()).toString()}`);
+
+  const enrichment = await enrichMissingElectorates(api);
+  console.log(
+    `[worker] electorate enrichment: scanned=${enrichment.scanned}, missing=${enrichment.missing}, updated=${enrichment.updated}, failed=${enrichment.failed}`,
+  );
 
   const head = (await api.rpc.chain.getHeader(await api.rpc.chain.getFinalizedHead()))
     .number.toNumber();

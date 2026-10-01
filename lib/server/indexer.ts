@@ -19,6 +19,79 @@ export const TERMINAL_EVENTS: Record<string, Phase> = {
   Killed: "killed",
 };
 
+export type ElectorateEnrichmentResult = {
+  scanned: number;
+  missing: number;
+  updated: number;
+  failed: number;
+};
+
+// Upgrade historical rows written before electorate became part of finalTally.
+// This is intentionally idempotent and cheap after the first successful run.
+export async function enrichMissingElectorates(
+  api: ApiPromise,
+): Promise<ElectorateEnrichmentResult> {
+  const rows = await prisma.referendum.findMany({
+    where: { decidedAt: { not: null } },
+    select: { index: true, decidedAt: true, finalTally: true },
+    orderBy: { index: "asc" },
+  });
+  const result: ElectorateEnrichmentResult = {
+    scanned: rows.length,
+    missing: 0,
+    updated: 0,
+    failed: 0,
+  };
+
+  for (const row of rows) {
+    const tally = row.finalTally;
+    if (!tally || typeof tally !== "object" || Array.isArray(tally)) continue;
+    if (typeof tally.electorate === "string" && tally.electorate) continue;
+    if (
+      typeof tally.ayes !== "string" ||
+      typeof tally.nays !== "string" ||
+      typeof tally.support !== "string" ||
+      row.decidedAt === null
+    ) {
+      continue;
+    }
+    result.missing += 1;
+
+    try {
+      const terminalHash = (await api.rpc.chain.getBlockHash(row.decidedAt)).toHex();
+      const terminalApi: any = await api.at(terminalHash);
+      const [totalIssuance, inactiveIssuance] = await Promise.all([
+        terminalApi.query.balances.totalIssuance(),
+        terminalApi.query.balances.inactiveIssuance(),
+      ]);
+      const electorate = totalIssuance
+        .toBn()
+        .sub(inactiveIssuance.toBn())
+        .toString();
+      await prisma.referendum.update({
+        where: { index: row.index },
+        data: {
+          finalTally: {
+            ayes: tally.ayes,
+            nays: tally.nays,
+            support: tally.support,
+            electorate,
+          },
+        },
+      });
+      result.updated += 1;
+    } catch (error) {
+      result.failed += 1;
+      console.error(
+        `[worker] electorate enrichment failed for ref=${row.index}:`,
+        error,
+      );
+    }
+  }
+
+  return result;
+}
+
 // Refresh a referendum row from (current or historical) chain state.
 export async function upsertFromState(
   api: ApiPromise,
