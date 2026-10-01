@@ -6,11 +6,11 @@
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f2f7f5;
-  --line: #dce5e2;
-  --line-strong: #a6b8b2;
+  --surface-2: #eaf1ef;
+  --line: #c8d4d0;
+  --line-strong: #879b94;
   --ink: #070a09;
-  --muted: #53635e;
+  --muted: #40514b;
   --accent: #00ffc4;
   --accent-ink: #00775c;
   --accent-soft: #d9fff6;
@@ -31,12 +31,12 @@
 
 .dark {
   --bg: #000000;
-  --surface: #070a09;
-  --surface-2: #101715;
-  --line: rgb(255 255 255 / 0.11);
-  --line-strong: rgb(255 255 255 / 0.24);
-  --ink: #f7faf9;
-  --muted: #a3afab;
+  --surface: #09130f;
+  --surface-2: #12211c;
+  --line: rgb(214 255 239 / 0.17);
+  --line-strong: rgb(214 255 239 / 0.34);
+  --ink: #fbfffd;
+  --muted: #b3c2bc;
   --accent: #00ffc4;
   --accent-ink: #00ffc4;
   --accent-soft: rgb(0 255 196 / 0.11);
@@ -83,7 +83,9 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 84% 0%, rgb(0 255 196 / 0.08), transparent 30rem);
+  background:
+    radial-gradient(circle at 84% 0%, rgb(0 255 196 / 0.11), transparent 32rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 28%, transparent), transparent 24rem);
 }
 
 ::selection {
@@ -124,6 +126,22 @@ body {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
+  box-shadow: 0 12px 36px -32px rgb(0 0 0 / 0.75);
+}
+
+.tally-panel {
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 44px -34px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.tally-verdict {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .rule-double {

@@ -10,7 +10,12 @@ import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
 import { VotePopup } from "@/components/VotePopup";
 import { EditContent } from "@/components/EditContent";
 import { Comments } from "@/components/Comments";
-import { HistoryPanel, useHistory } from "@/components/HistoryPanel";
+import {
+  HistoryPanel,
+  TallyPanel,
+  VoteStatistics,
+  useHistory,
+} from "@/components/HistoryPanel";
 import { Markdown } from "@/components/Markdown";
 import { useContent } from "@/lib/content";
 import {
@@ -171,9 +176,8 @@ export default function ReferendumPage({
     support >= supportThreshold;
 
   return (
-    <div>
-      <div className="anim-rise grid gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="relative min-w-0">
+    <div className="anim-rise">
+      <header className="relative">
         {!isOngoing && (
           <span
             className={`stamp absolute top-1 right-0 hidden text-sm sm:inline-block ${
@@ -224,7 +228,29 @@ export default function ReferendumPage({
           </p>
         )}
 
-        <section className="mt-6">
+      </header>
+
+      <div className="mt-6 lg:hidden">
+        {!isOngoing && <HistoryPanel index={ref.index} track={track} />}
+        {ref.tally && (
+          <TallyPanel
+            tally={ref.tally}
+            approval={approval}
+            support={support}
+            approvalThreshold={approvalThreshold}
+            supportThreshold={supportThreshold}
+            live
+            passing={passingNow}
+            issuance={issuance}
+            onVote={isOngoing ? () => setVoteOpen(true) : undefined}
+          />
+        )}
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="min-w-0">
+
+        <section>
           <div
             className={
               content?.contentMd || remark
@@ -276,52 +302,28 @@ export default function ReferendumPage({
           )}
         </section>
 
+        <VoteStatistics votes={history?.votes ?? []} />
+
         <Comments refIndex={ref.index} />
       </div>
 
       <aside className="space-y-4">
-        {!isOngoing && <HistoryPanel index={ref.index} />}
-        {ref.tally && (
-          <section className="panel p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-muted">Tally · live</h2>
-              {isOngoing && (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs ${
-                    passingNow
-                      ? "bg-aye/15 text-aye"
-                      : "bg-nay/15 text-nay"
-                  }`}
-                >
-                  {passingNow ? "Passing" : "Failing"}
-                </span>
-              )}
-            </div>
-            <Row label="Aye">{formatVara(ref.tally.ayes)} VARA</Row>
-            <Row label="Nay">{formatVara(ref.tally.nays)} VARA</Row>
-            <Row label="Approval">
-              {percent(approval)}
-              {approvalThreshold !== null && (
-                <span className="text-muted"> / {percent(approvalThreshold)}</span>
-              )}
-            </Row>
-            <Row label="Support">
-              {percent(support)}
-              {supportThreshold !== null && (
-                <span className="text-muted"> / {percent(supportThreshold)}</span>
-              )}
-            </Row>
-            {isOngoing && (
-              <button
-                onClick={() => setVoteOpen(true)}
-                title={account ? undefined : "Connect a wallet in the header first"}
-                className="btn btn-primary mt-3 w-full"
-              >
-                Vote
-              </button>
-            )}
-          </section>
-        )}
+        <div className="hidden lg:block">
+          {!isOngoing && <HistoryPanel index={ref.index} track={track} />}
+          {ref.tally && (
+            <TallyPanel
+              tally={ref.tally}
+              approval={approval}
+              support={support}
+              approvalThreshold={approvalThreshold}
+              supportThreshold={supportThreshold}
+              live
+              passing={passingNow}
+              issuance={issuance}
+              onVote={isOngoing ? () => setVoteOpen(true) : undefined}
+            />
+          )}
+        </div>
         {voteOpen && (
           <VotePopup referendum={ref} onClose={() => setVoteOpen(false)} />
         )}

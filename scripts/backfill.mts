@@ -31,9 +31,10 @@ async function main() {
 
   for (let index = 0; index < count; index++) {
     const existing = await prisma.referendum.findUnique({ where: { index } });
-    if (existing?.finalTally || (existing?.status && existing.status !== "unknown" && !existing.decidedAt && existing.trackId !== null)) {
-      // Already backfilled (terminal with tally) or live row kept fresh by the worker.
-      if (existing.finalTally) {
+    const savedTally = existing?.finalTally as { electorate?: unknown } | null;
+    if (savedTally?.electorate || (existing?.status && existing.status !== "unknown" && !existing.decidedAt && existing.trackId !== null)) {
+      // Already enriched with historical electorate, or a live row kept fresh by the worker.
+      if (savedTally?.electorate) {
         console.log(`[backfill] #${index} already done, skip`);
         continue;
       }

@@ -116,6 +116,14 @@ export async function handleTerminal(
   const apiAt: any = await api.at(parentHash);
   const info = await apiAt.query.referenda.referendumInfoFor(index);
   const before = parseReferendumInfo(index, info);
+  const terminalHash = (await api.rpc.chain.getBlockHash(blockNumber)).toHex();
+  const terminalApi: any = await api.at(terminalHash);
+  const [totalIssuance, inactiveIssuance] = await Promise.all([
+    terminalApi.query.balances.totalIssuance(),
+    terminalApi.query.balances.inactiveIssuance(),
+  ]);
+  const electorate = totalIssuance.toBn().sub(inactiveIssuance.toBn()).toString();
+  const finalTally = tally ? { ...tally, electorate } : undefined;
 
   await prisma.referendum.upsert({
     where: { index },
@@ -129,7 +137,7 @@ export async function handleTerminal(
       decidingSince: before?.decidingSince,
       status: phase,
       decidedAt: blockNumber,
-      finalTally: tally ?? undefined,
+      finalTally,
     },
     update: {
       trackId: before?.trackId ?? undefined,
@@ -140,7 +148,7 @@ export async function handleTerminal(
       decidingSince: before?.decidingSince ?? undefined,
       status: phase,
       decidedAt: blockNumber,
-      finalTally: tally ?? undefined,
+      finalTally,
     },
   });
 

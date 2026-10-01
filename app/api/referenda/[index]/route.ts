@@ -20,6 +20,7 @@ export async function GET(
       proposalLen: true,
       status: true,
       submittedAt: true,
+      decidingSince: true,
       decidedAt: true,
       finalTally: true,
     },
