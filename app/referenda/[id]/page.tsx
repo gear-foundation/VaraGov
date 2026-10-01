@@ -231,7 +231,9 @@ export default function ReferendumPage({
       </header>
 
       <div className="mt-6 lg:hidden">
-        {!isOngoing && <HistoryPanel index={ref.index} track={track} />}
+        {!isOngoing && (
+          <HistoryPanel index={ref.index} track={track} outcome={ref.phase} />
+        )}
         {ref.tally && (
           <TallyPanel
             tally={ref.tally}
@@ -302,14 +304,23 @@ export default function ReferendumPage({
           )}
         </section>
 
-        <VoteStatistics votes={history?.votes ?? []} />
+        <VoteStatistics
+          votes={history?.votes ?? []}
+          electorate={
+            isOngoing
+              ? issuance
+              : history?.referendum?.finalTally?.electorate ?? null
+          }
+        />
 
         <Comments refIndex={ref.index} />
       </div>
 
       <aside className="space-y-4">
         <div className="hidden lg:block">
-          {!isOngoing && <HistoryPanel index={ref.index} track={track} />}
+          {!isOngoing && (
+            <HistoryPanel index={ref.index} track={track} outcome={ref.phase} />
+          )}
           {ref.tally && (
             <TallyPanel
               tally={ref.tally}

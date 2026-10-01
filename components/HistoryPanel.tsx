@@ -11,8 +11,10 @@ import {
   supportFraction,
 } from "@/lib/chain/curves";
 import { formatVara, percent, shortAddress } from "@/lib/chain/format";
+import type { Phase } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
 import { CONVICTIONS } from "@/lib/chain/voting";
+import { PHASE_LABEL } from "@/components/referenda";
 
 export type VoteDto = {
   voter: string;
@@ -77,18 +79,29 @@ function ThresholdBar({
   const marker = threshold === null ? null : clampPercent(threshold);
   const thresholdLabel =
     threshold === null ? null : detailedPercent(threshold, precision);
+  const thresholdComparison =
+    threshold !== null && threshold > 0
+      ? value >= threshold
+        ? `Met · ${(value / threshold).toFixed(2)}×`
+        : `${Math.round((value / threshold) * 100)}% of required`
+      : null;
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted">
         <span>{label}</span>
-        {thresholdLabel && <span>Required {thresholdLabel}</span>}
+        {thresholdLabel && (
+          <span className={value >= (threshold ?? 0) ? "text-aye" : "text-nay"}>
+            Required {thresholdLabel}
+            {thresholdComparison && ` · ${thresholdComparison}`}
+          </span>
+        )}
       </div>
       <div
-        className="relative h-2 overflow-visible rounded-full bg-nay/25"
+        className="relative h-2 overflow-visible rounded-[2px] bg-nay/25"
         role="img"
         aria-label={`${label} ${detailedPercent(value, precision)}${threshold === null ? "" : `, required ${detailedPercent(threshold, precision)}`}`}
       >
-        <div className="anim-bar h-full rounded-full bg-aye" style={{ width: `${width}%` }} />
+        <div className="anim-bar h-full rounded-[2px] bg-aye" style={{ width: `${width}%` }} />
         {marker !== null && (
           <span
             className="absolute top-[-3px] h-3.5 w-px bg-ink"
@@ -109,6 +122,7 @@ export function TallyPanel({
   supportThreshold = null,
   live = false,
   passing = null,
+  outcome,
   issuance,
   onVote,
 }: {
@@ -119,20 +133,39 @@ export function TallyPanel({
   supportThreshold?: number | null;
   live?: boolean;
   passing?: boolean | null;
+  outcome?: Phase;
   issuance?: BN | null;
   onVote?: () => void;
 }) {
   const nayShare = approval === null ? null : 1 - approval;
+  const verdict = live
+    ? passing === null
+      ? null
+      : passing
+        ? "Passing"
+        : "Failing"
+    : outcome
+      ? PHASE_LABEL[outcome]
+      : null;
+  const verdictTone = live
+    ? passing
+      ? "text-aye"
+      : "text-nay"
+    : outcome === "approved"
+      ? "text-aye"
+      : outcome === "rejected" || outcome === "killed"
+        ? "text-nay"
+        : "text-muted";
   return (
     <section className="panel tally-panel overflow-hidden">
-      <div className="flex items-center justify-between border-b border-line bg-surface-2 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-line-strong bg-surface-2 px-4 py-3">
         <div>
           <h2 className="label-serif">{live ? "Live tally" : "Final tally"}</h2>
           <p className="mt-0.5 text-[11px] text-muted">Conviction-weighted voting power</p>
         </div>
-        {passing !== null && (
-          <span className={`tally-verdict ${passing ? "text-aye" : "text-nay"}`}>
-            {passing ? "Passing" : "Failing"}
+        {verdict && (
+          <span className={`tally-verdict ${verdictTone}`}>
+            {verdict}
           </span>
         )}
       </div>
@@ -158,7 +191,7 @@ export function TallyPanel({
           )}
         </div>
 
-        <div className="border-t border-line pt-4">
+        <div className="border-t border-line-strong pt-4">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Support</p>
@@ -225,7 +258,23 @@ function convictionLabel(votes: VoteDto[]) {
   return `${average.toFixed(1)}x`;
 }
 
-export function VoteStatistics({ votes }: { votes: VoteDto[] }) {
+function directTurnout(
+  capital: bigint,
+  electorate: BN | string | null | undefined,
+) {
+  if (!electorate) return null;
+  const total = BigInt(electorate.toString());
+  if (total <= BigInt(0)) return null;
+  return Number((capital * BigInt(10_000_000)) / total) / 10_000_000;
+}
+
+export function VoteStatistics({
+  votes,
+  electorate,
+}: {
+  votes: VoteDto[];
+  electorate?: BN | string | null;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (votes.length === 0) return null;
 
@@ -238,50 +287,84 @@ export function VoteStatistics({ votes }: { votes: VoteDto[] }) {
   const nayWidth =
     capital === BigInt(0) ? 0 : Number((nay * BigInt(10_000)) / capital) / 100;
   const abstainWidth = Math.max(0, 100 - ayeWidth - nayWidth);
+  const turnout = directTurnout(capital, electorate);
+  const sideCounts = votes.reduce(
+    (counts, vote) => {
+      const side = voteAmount(vote).side;
+      if (side === "Aye") counts.aye += 1;
+      else if (side === "Nay") counts.nay += 1;
+      else if (side === "Abstain") counts.abstain += 1;
+      else counts.split += 1;
+      return counts;
+    },
+    { aye: 0, nay: 0, abstain: 0, split: 0 },
+  );
+  const largest = votes.reduce((current, vote) => {
+    const amount =
+      BigInt(vote.aye ?? 0) +
+      BigInt(vote.nay ?? 0) +
+      BigInt(vote.abstain ?? 0);
+    return amount > current ? amount : current;
+  }, BigInt(0));
 
   return (
     <section className="panel mt-6 overflow-hidden">
-      <div className="border-b border-line bg-surface-2 px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-strong bg-surface-2 px-4 py-3 sm:px-5">
         <h2 className="label-serif flex items-center gap-2"><UsersRound size={15} /> Voting statistics</h2>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+          Direct vote snapshot
+        </span>
       </div>
       <div className="p-4 sm:p-5">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
-          <div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="stat-metric">
             <p className="text-xs text-muted">Participants</p>
             <p className="display tnum mt-1 text-2xl font-semibold">{votes.length}</p>
+            <p className="text-[11px] text-muted">direct accounts</p>
           </div>
-          <div>
+          <div className="stat-metric">
+            <p className="text-xs text-muted">Direct turnout</p>
+            <p className="display tnum mt-1 text-2xl font-semibold">
+              {turnout === null
+                ? "—"
+                : detailedPercent(turnout, turnout < 0.01 ? 3 : 2)}
+            </p>
+            <p className="text-[11px] text-muted">
+              {turnout === null ? "electorate unavailable" : "of active issuance"}
+            </p>
+          </div>
+          <div className="stat-metric">
             <p className="text-xs text-muted">Capital cast</p>
             <p className="display tnum mt-1 text-2xl font-semibold">{formatVara(capital.toString())}</p>
             <p className="text-[11px] text-muted">VARA before conviction</p>
           </div>
-          <div>
+          <div className="stat-metric">
             <p className="text-xs text-muted">Average conviction</p>
             <p className="display tnum mt-1 text-2xl font-semibold">{convictionLabel(votes)}</p>
             <p className="text-[11px] text-muted">standard votes</p>
           </div>
-          <div>
-            <p className="text-xs text-muted">Largest position</p>
-            <p className="display tnum mt-1 text-2xl font-semibold">
-              {formatVara(votes.reduce((largest, vote) => {
-                const amount = BigInt(vote.aye ?? 0) + BigInt(vote.nay ?? 0) + BigInt(vote.abstain ?? 0);
-                return amount > largest ? amount : largest;
-              }, BigInt(0)).toString())}
-            </p>
-            <p className="text-[11px] text-muted">VARA</p>
-          </div>
         </div>
 
         <div className="mt-5">
-          <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2" aria-label="Unweighted capital by vote direction">
+          <div className="mb-2 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold">Direct capital composition</p>
+              <p className="text-[11px] text-muted">Unweighted capital recorded per direction</p>
+            </div>
+            <p className="tnum shrink-0 text-right text-[11px] text-muted">
+              Largest {formatVara(largest.toString())} VARA
+            </p>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-[2px] bg-surface-2" aria-label="Unweighted capital by vote direction">
             <span className="bg-aye" style={{ width: `${ayeWidth}%` }} />
             <span className="bg-nay" style={{ width: `${nayWidth}%` }} />
             <span className="bg-abstain" style={{ width: `${abstainWidth}%` }} />
           </div>
-          <div className="mt-2 grid gap-1 text-xs sm:grid-cols-3">
-            <span className="tnum text-aye">Aye {formatVara(aye.toString())}</span>
-            <span className="tnum text-nay sm:text-center">Nay {formatVara(nay.toString())}</span>
-            <span className="tnum text-muted sm:text-right">Abstain {formatVara(abstain.toString())}</span>
+          <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-xs sm:grid-cols-4">
+            <span className="tnum text-aye">Aye {formatVara(aye.toString())}<small className="mt-0.5 block text-[11px] text-muted">{sideCounts.aye} accounts</small></span>
+            <span className="tnum text-nay">Nay {formatVara(nay.toString())}<small className="mt-0.5 block text-[11px] text-muted">{sideCounts.nay} accounts</small></span>
+            <span className="tnum text-muted">Abstain {formatVara(abstain.toString())}<small className="mt-0.5 block text-[11px]">{sideCounts.abstain} accounts</small></span>
+            <span className="tnum text-muted">Split votes<small className="mt-0.5 block text-[11px]">{sideCounts.split} accounts</small></span>
           </div>
         </div>
 
@@ -319,9 +402,11 @@ export function VoteStatistics({ votes }: { votes: VoteDto[] }) {
 export function HistoryPanel({
   index,
   track,
+  outcome,
 }: {
   index: number;
   track?: TrackInfo;
+  outcome?: Phase;
 }) {
   const { data } = useHistory(index);
   const tally = data?.referendum?.finalTally;
@@ -352,6 +437,7 @@ export function HistoryPanel({
       supportThreshold={
         track && progress !== null ? curveThreshold(track.minSupport, progress) : null
       }
+      outcome={outcome}
       issuance={electorate}
     />
   );
