@@ -41,7 +41,7 @@ export function Logo() {
         width={1150}
         height={450}
         priority
-        className="h-10 w-[102px] object-contain dark:hidden"
+        className="h-10 w-[102px] object-contain mix-blend-multiply dark:hidden"
       />
       <Image
         src="/brand/varagov-wordmark-dark.png"
@@ -49,7 +49,7 @@ export function Logo() {
         width={920}
         height={360}
         priority
-        className="hidden h-10 w-[102px] object-contain dark:block"
+        className="hidden h-10 w-[102px] object-contain mix-blend-screen dark:block"
       />
     </span>
   );

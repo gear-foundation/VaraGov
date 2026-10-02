@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BN } from "@polkadot/util";
-import { ChevronDown, UsersRound } from "lucide-react";
+import { Check, ChevronDown, Copy, UsersRound } from "lucide-react";
 import {
   approvalFraction,
   curveThreshold,
@@ -276,7 +276,28 @@ export function VoteStatistics({
   electorate?: BN | string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [copiedVoter, setCopiedVoter] = useState<string | null>(null);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+    },
+    [],
+  );
+
   if (votes.length === 0) return null;
+
+  const copyVoter = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopiedVoter(address);
+      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = setTimeout(() => setCopiedVoter(null), 1_800);
+    } catch {
+      setCopiedVoter(null);
+    }
+  };
 
   const aye = sumVotes(votes, "aye");
   const nay = sumVotes(votes, "nay");
@@ -383,7 +404,27 @@ export function VoteStatistics({
               const { side, amount } = voteAmount(vote);
               return (
                 <div key={vote.voter} className="flex items-center justify-between gap-3 py-2 text-xs">
-                  <span className="tnum text-muted" title={vote.voter}>{shortAddress(vote.voter)}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyVoter(vote.voter)}
+                    className="group -ml-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                    title={copiedVoter === vote.voter ? "Address copied" : `Copy ${vote.voter}`}
+                    aria-label={copiedVoter === vote.voter ? "Address copied" : `Copy voter address ${vote.voter}`}
+                  >
+                    <span className="tnum truncate">{shortAddress(vote.voter)}</span>
+                    {copiedVoter === vote.voter ? (
+                      <>
+                        <Check size={13} className="shrink-0 text-aye" aria-hidden="true" />
+                        <span className="text-[10px] font-medium text-aye">Copied</span>
+                      </>
+                    ) : (
+                      <Copy
+                        size={13}
+                        className="shrink-0 opacity-60 transition-opacity group-hover:opacity-100"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
                   <span className={`tnum text-right ${side === "Aye" ? "text-aye" : side === "Nay" ? "text-nay" : "text-muted"}`}>
                     {side} · {formatVara(amount)}
                     {vote.conviction !== null && ` · ${CONVICTIONS[vote.conviction]?.label ?? ""}`}
