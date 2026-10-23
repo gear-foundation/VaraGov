@@ -154,6 +154,9 @@ export function VotePopup({
     if (ok) {
       await queryClient.invalidateQueries({ queryKey: ["myVote"] });
       await queryClient.invalidateQueries({
+        queryKey: ["referendumVotes", referendum.index],
+      });
+      await queryClient.invalidateQueries({
         queryKey: ["referendum", referendum.index],
       });
     }
@@ -164,7 +167,15 @@ export function VotePopup({
     const ok = await send(
       api.tx.convictionVoting.removeVote(referendum.trackId, referendum.index),
     );
-    if (ok) await queryClient.invalidateQueries({ queryKey: ["myVote"] });
+    if (ok) {
+      await queryClient.invalidateQueries({ queryKey: ["myVote"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["referendumVotes", referendum.index],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["referendum", referendum.index],
+      });
+    }
   }
 
   return (

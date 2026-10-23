@@ -45,6 +45,7 @@ import type { DecodedCallNode } from "@/lib/chain/call-decoder";
 import { sameAccount } from "@/lib/chain/address";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { humanizeReadError } from "@/lib/chain/errors";
+import { useReferendumVotes } from "@/lib/chain/voting";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { api, connected } = useApi();
@@ -137,6 +138,14 @@ export default function ReferendumPage({
     error: historyError,
     refetch: refetchHistory,
   } = useHistory(index);
+  const voteTrackId = ref?.trackId ?? history?.referendum?.trackId ?? null;
+  const liveVotesEnabled = !!ref && ONGOING_PHASES.includes(ref.phase);
+  const {
+    data: liveVotes,
+    isPending: liveVotesPending,
+    error: liveVotesError,
+    refetch: refetchLiveVotes,
+  } = useReferendumVotes(index, voteTrackId, liveVotesEnabled);
   const tracks = useTracks();
   const issuance = useActiveIssuance();
   const refForCall =
@@ -337,22 +346,28 @@ export default function ReferendumPage({
           )}
         </section>
 
-        {historyError ? (
+        {(isOngoing ? liveVotesError : historyError) ? (
           <div className="mt-6">
             <ErrorNotice
-              message={humanizeReadError("historical voting data")}
-              onRetry={() => void refetchHistory()}
+              message={humanizeReadError(
+                isOngoing ? "live voter data" : "historical voting data",
+              )}
+              onRetry={() =>
+                void (isOngoing ? refetchLiveVotes() : refetchHistory())
+              }
               compact
             />
           </div>
         ) : (
           <VoteStatistics
-            votes={history?.votes ?? []}
+            votes={isOngoing ? liveVotes ?? [] : history?.votes ?? []}
             electorate={
               isOngoing
                 ? issuance
                 : history?.referendum?.finalTally?.electorate ?? null
             }
+            live={isOngoing}
+            loading={isOngoing ? liveVotesPending : !history}
           />
         )}
 

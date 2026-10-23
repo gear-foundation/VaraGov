@@ -14,16 +14,10 @@ import { formatVara, percent, shortAddress } from "@/lib/chain/format";
 import type { Phase } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
 import { CONVICTIONS } from "@/lib/chain/voting";
+import type { DirectVote } from "@/lib/chain/direct-votes";
 import { PHASE_LABEL } from "@/components/referenda";
 
-export type VoteDto = {
-  voter: string;
-  kind: string;
-  aye: string | null;
-  nay: string | null;
-  abstain: string | null;
-  conviction: number | null;
-};
+export type VoteDto = DirectVote;
 
 export type HistoryDto = {
   referendum: {
@@ -271,9 +265,13 @@ function directTurnout(
 export function VoteStatistics({
   votes,
   electorate,
+  live = false,
+  loading = false,
 }: {
   votes: VoteDto[];
   electorate?: BN | string | null;
+  live?: boolean;
+  loading?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copiedVoter, setCopiedVoter] = useState<string | null>(null);
@@ -286,8 +284,6 @@ export function VoteStatistics({
     },
     [],
   );
-
-  if (votes.length === 0) return null;
 
   const copyVoter = async (address: string) => {
     try {
@@ -336,9 +332,19 @@ export function VoteStatistics({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-strong bg-surface-2 px-4 py-3 sm:px-5">
         <h2 className="label-serif flex items-center gap-2"><UsersRound size={15} /> Voting statistics</h2>
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Direct vote snapshot
+          {live ? "Live from Vara Network" : "Final direct-vote snapshot"}
         </span>
       </div>
+      {loading ? (
+        <div className="space-y-3 p-4 sm:p-5" aria-busy="true">
+          <div className="skeleton h-16" />
+          <div className="skeleton h-8" />
+        </div>
+      ) : votes.length === 0 ? (
+        <div className="p-4 text-sm text-muted sm:p-5">
+          No direct votes have been recorded for this referendum.
+        </div>
+      ) : (
       <div className="p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="stat-metric">
@@ -445,6 +451,7 @@ export function VoteStatistics({
           </div>
         )}
       </div>
+      )}
     </section>
   );
 }

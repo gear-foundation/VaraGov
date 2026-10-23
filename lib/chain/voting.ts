@@ -3,6 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { BN, BN_ZERO } from "@polkadot/util";
 import { useApi } from "./ApiProvider";
+import {
+  directVoteCapital,
+  parseDirectVote,
+  type DirectVote,
+} from "./direct-votes";
 
 export const CONVICTIONS = [
   { value: 0, label: "0.1x", lockPeriods: 0 },
@@ -82,6 +87,44 @@ export function useMyVote(
       return parseAccountVote(voting, refIndex);
     },
     enabled: !!api && !!address && trackId !== null,
+    refetchInterval: 12_000,
+  });
+}
+
+export function useReferendumVotes(
+  refIndex: number,
+  trackId: number | null,
+  enabled: boolean,
+) {
+  const { api } = useApi();
+  return useQuery({
+    queryKey: ["referendumVotes", refIndex, trackId],
+    queryFn: async (): Promise<DirectVote[]> => {
+      const entries = await api!.query.convictionVoting.votingFor.entries();
+      const votes: DirectVote[] = [];
+
+      for (const [key, voting] of entries) {
+        const [voter, track] = key.args as [any, any];
+        if (track.toNumber() !== trackId || !(voting as any).isCasting) continue;
+
+        for (const [index, accountVote] of (voting as any).asCasting.votes) {
+          if (index.toNumber() !== refIndex) continue;
+          const parsed = parseDirectVote(accountVote);
+          if (parsed) votes.push({ voter: voter.toString(), ...parsed });
+        }
+      }
+
+      return votes.sort((left, right) => {
+        const leftCapital = directVoteCapital(left);
+        const rightCapital = directVoteCapital(right);
+        return leftCapital === rightCapital
+          ? left.voter.localeCompare(right.voter)
+          : leftCapital > rightCapital
+            ? -1
+            : 1;
+      });
+    },
+    enabled: !!api && enabled && trackId !== null && Number.isInteger(refIndex),
     refetchInterval: 12_000,
   });
 }
