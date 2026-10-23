@@ -9,7 +9,16 @@ import { BN } from "@polkadot/util";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
-import { CONVICTIONS, useMyVote, useVotingBalance } from "@/lib/chain/voting";
+import {
+  CONVICTIONS,
+  useMyVote,
+  useVotingBalanceQuery,
+} from "@/lib/chain/voting";
+import { safeMaximumVoteBalance } from "@/lib/chain/vote-limits";
+import { parseVaraAmount } from "@/lib/chain/amount";
+import { humanizeTxError } from "@/lib/chain/errors";
+import { humanizeReadError } from "@/lib/chain/errors";
+import { ErrorNotice } from "@/components/ErrorNotice";
 import { DECIMALS, formatVara, shortAddress } from "@/lib/chain/format";
 import type { Referendum } from "@/lib/chain/referenda";
 
@@ -23,7 +32,7 @@ export function VotePopup({
   referendum: Referendum;
   onClose: () => void;
 }) {
-  const { api } = useApi();
+  const { api, connected, error: apiError } = useApi();
   const { account } = useWallet();
   const queryClient = useQueryClient();
   const { status, send, reset } = useSendTx();
@@ -31,21 +40,28 @@ export function VotePopup({
   const [tab, setTab] = useState<Tab>("Aye");
   const [amount, setAmount] = useState("");
   const [conviction, setConviction] = useState(1);
+  const [maxBusy, setMaxBusy] = useState(false);
+  const [maxError, setMaxError] = useState<string | null>(null);
 
-  const { data: myVote } = useMyVote(
+  const {
+    data: myVote,
+    isPending: votePending,
+    error: voteError,
+    refetch: refetchVote,
+  } = useMyVote(
     account?.address,
     referendum.trackId,
     referendum.index,
   );
-  const balance = useVotingBalance(account?.address);
+  const {
+    data: balance,
+    isPending: balancePending,
+    error: balanceError,
+    refetch: refetchBalance,
+  } = useVotingBalanceQuery(account?.address);
 
-  const planck = useMemo(() => {
-    const v = new BigNumber(amount || "0");
-    if (v.isNaN() || v.lte(0)) return null;
-    return new BN(
-      v.times(new BigNumber(10).pow(DECIMALS)).toFixed(0, BigNumber.ROUND_DOWN),
-    );
-  }, [amount]);
+  const parsedAmount = useMemo(() => parseVaraAmount(amount), [amount]);
+  const planck = parsedAmount.ok ? parsedAmount.planck : null;
 
   const amountTooHigh = planck !== null && balance !== undefined && planck.gt(balance);
   const transactionPending = isTxPending(status);
@@ -55,29 +71,83 @@ export function VotePopup({
   // Every disabled state names its reason (wallet-readiness rule).
   const disabledReason = !account
     ? "Connect a wallet first"
-    : myVote?.kind === "delegating"
-      ? "You delegate votes on this track"
-      : planck === null
-        ? "Enter an amount"
-        : amountTooHigh
-          ? "Amount exceeds your balance"
-          : transactionPending
-            ? TX_LABEL[status.state]
-            : null;
+    : !api || !connected
+      ? apiError
+        ? "Vara Network is unavailable"
+        : "Connecting to Vara Network…"
+      : referendum.trackId === null
+        ? "The governance track is unavailable"
+        : votePending
+          ? "Loading your voting state…"
+          : voteError
+            ? "Your voting state is unavailable"
+            : balancePending
+              ? "Loading your balance…"
+              : balanceError || balance === undefined
+                ? "Your balance is unavailable"
+                : myVote?.kind === "delegating"
+                  ? "You delegate votes on this track"
+                  : !parsedAmount.ok
+                    ? parsedAmount.message
+                    : amountTooHigh
+                      ? "Amount exceeds your balance"
+                      : transactionPending
+                        ? TX_LABEL[status.state]
+                        : null;
 
   const lockDays = tab === "Abstain" ? 0 : CONVICTIONS[conviction].lockPeriods * 7;
 
+  function voteArgument(voteBalance: BN) {
+    return tab === "Abstain"
+      ? { SplitAbstain: { aye: 0, nay: 0, abstain: voteBalance } }
+      : {
+          Standard: {
+            vote: { aye: tab === "Aye", conviction },
+            balance: voteBalance,
+          },
+        };
+  }
+
+  async function setSafeMaximumAmount() {
+    if (!api || !connected || !account || !balance) return;
+    setMaxBusy(true);
+    setMaxError(null);
+    reset();
+    try {
+      const tx = api.tx.convictionVoting.vote(
+        referendum.index,
+        voteArgument(balance),
+      );
+      const [accountInfo, paymentInfo] = await Promise.all([
+        api.query.system.account(account.address),
+        tx.paymentInfo(account.address),
+      ]);
+      const maximum = safeMaximumVoteBalance(
+        accountInfo.data.free.toBn(),
+        accountInfo.data.frozen.toBn(),
+        api.consts.balances.existentialDeposit.toBn(),
+        paymentInfo.partialFee.toBn(),
+      );
+      if (!maximum.ok) {
+        setMaxError(maximum.message);
+        return;
+      }
+      setAmount(
+        new BigNumber(maximum.balance.toString())
+          .div(new BigNumber(10).pow(DECIMALS))
+          .toFixed(DECIMALS, BigNumber.ROUND_DOWN)
+          .replace(/\.?0+$/, ""),
+      );
+    } catch (error) {
+      setMaxError(humanizeTxError(error));
+    } finally {
+      setMaxBusy(false);
+    }
+  }
+
   async function submit() {
     if (!api || planck === null || disabledReason) return;
-    const voteArg =
-      tab === "Abstain"
-        ? { SplitAbstain: { aye: 0, nay: 0, abstain: planck } }
-        : {
-            Standard: {
-              vote: { aye: tab === "Aye", conviction },
-              balance: planck,
-            },
-          };
+    const voteArg = voteArgument(planck);
     const ok = await send(
       api.tx.convictionVoting.vote(referendum.index, voteArg),
     );
@@ -90,7 +160,7 @@ export function VotePopup({
   }
 
   async function removeVote() {
-    if (!api || referendum.trackId === null) return;
+    if (!api || !connected || referendum.trackId === null) return;
     const ok = await send(
       api.tx.convictionVoting.removeVote(referendum.trackId, referendum.index),
     );
@@ -130,6 +200,29 @@ export function VotePopup({
           </p>
         ) : (
           <>
+            {voteError && (
+              <div className="mb-3">
+                <ErrorNotice
+                  message={humanizeReadError("your current voting state")}
+                  onRetry={() => void refetchVote()}
+                  compact
+                />
+              </div>
+            )}
+            {balanceError && (
+              <div className="mb-3">
+                <ErrorNotice
+                  message={humanizeReadError("your account balance")}
+                  onRetry={() => void refetchBalance()}
+                  compact
+                />
+              </div>
+            )}
+            {apiError && !connected && (
+              <div className="mb-3">
+                <ErrorNotice message={apiError} compact />
+              </div>
+            )}
             {myVote && myVote.kind !== "none" && (
               <div className="mb-4 flex items-center justify-between rounded-[10px] bg-surface-2 px-3 py-2 text-sm">
                 <span className="text-muted">
@@ -140,7 +233,8 @@ export function VotePopup({
                 </span>
                 <button
                   onClick={() => void removeVote()}
-                  disabled={transactionLocked}
+                  disabled={transactionLocked || !connected}
+                  title={!connected ? "Vara Network is unavailable" : undefined}
                   className="font-medium text-nay hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Remove
@@ -161,6 +255,7 @@ export function VotePopup({
                   disabled={transactionLocked}
                   onClick={() => {
                     setTab(t);
+                    setMaxError(null);
                     reset();
                   }}
                   className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors duration-150 ${
@@ -183,16 +278,11 @@ export function VotePopup({
               {balance !== undefined && (
                 <button
                   className="tnum float-right font-medium text-accent-ink hover:underline"
-                  disabled={transactionLocked}
-                  onClick={() =>
-                    setAmount(
-                      new BigNumber(balance.toString())
-                        .div(new BigNumber(10).pow(DECIMALS))
-                        .toFixed(2, BigNumber.ROUND_DOWN),
-                    )
-                  }
+                  disabled={transactionLocked || maxBusy || !connected}
+                  title={!connected ? "Vara Network is unavailable" : undefined}
+                  onClick={() => void setSafeMaximumAmount()}
                 >
-                  max {formatVara(balance)}
+                  {maxBusy ? "checking fee…" : `max ${formatVara(balance)}`}
                 </button>
               )}
             </label>
@@ -201,9 +291,14 @@ export function VotePopup({
               inputMode="decimal"
               value={amount}
               disabled={transactionLocked}
-              onChange={(e) => setAmount(e.target.value.replace(",", "."))}
+              onChange={(e) => {
+                setAmount(e.target.value.replace(",", "."));
+                setMaxError(null);
+              }}
               placeholder="0.0"
-              className={`input tnum mb-4 ${amountTooHigh ? "!border-nay" : ""}`}
+              className={`input tnum mb-4 ${
+                amount.trim() && (!parsedAmount.ok || amountTooHigh) ? "!border-nay" : ""
+              }`}
             />
 
             {tab !== "Abstain" && (
@@ -242,7 +337,14 @@ export function VotePopup({
             )}
 
             {status.state === "error" && (
-              <p className="mb-3 text-sm text-nay">{status.message}</p>
+              <div className="mb-3">
+                <ErrorNotice message={status.message} compact />
+              </div>
+            )}
+            {maxError && status.state !== "error" && (
+              <div className="mb-3">
+                <ErrorNotice message={maxError} compact />
+              </div>
             )}
             {(status.state === "inBlock" || status.state === "finalized") && (
               <div className="mb-3 flex items-center gap-3">

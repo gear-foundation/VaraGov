@@ -37,11 +37,11 @@ function ThemeToggle() {
 }
 
 function BlockIndicator() {
-  const { connected, finalizedNumber } = useApi();
+  const { connected, finalizedNumber, error } = useApi();
   return (
     <span
       className="hidden h-9 items-center gap-2 border-x border-line px-3.5 text-xs text-muted md:flex"
-      title={connected ? "Finalized block (live)" : "Connecting to Vara RPC…"}
+      title={connected ? "Finalized block (live)" : error ?? "Connecting to Vara RPC…"}
     >
       <span
         className={`live-dot h-1.5 w-1.5 rounded-full ${
@@ -51,7 +51,7 @@ function BlockIndicator() {
       {finalizedNumber !== null ? (
         <BlockTicker value={finalizedNumber} />
       ) : (
-        "connecting"
+        error ? "offline" : "connecting"
       )}
     </span>
   );

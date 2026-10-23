@@ -5,7 +5,7 @@ import { useRefMeta } from "@/lib/content";
 import { useReferendaList, useTracks } from "@/lib/chain/hooks";
 
 export default function ReferendaPage() {
-  const { data: referenda, isPending, error } = useReferendaList();
+  const { data: referenda, isPending, error, refetch } = useReferendaList();
   const tracks = useTracks();
   const meta = useRefMeta();
 
@@ -17,6 +17,7 @@ export default function ReferendaPage() {
       meta={meta}
       isPending={isPending}
       error={error}
+      onRetry={() => void refetch()}
     />
   );
 }

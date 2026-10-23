@@ -43,9 +43,11 @@ import { CurveChart } from "@/components/CurveChart";
 import { CallViewer } from "@/components/CallViewer";
 import type { DecodedCallNode } from "@/lib/chain/call-decoder";
 import { sameAccount } from "@/lib/chain/address";
+import { ErrorNotice } from "@/components/ErrorNotice";
+import { humanizeReadError } from "@/lib/chain/errors";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
-  const { api } = useApi();
+  const { api, connected } = useApi();
   const { account } = useWallet();
   const { status, send } = useSendTx();
   const queryClient = useQueryClient();
@@ -53,23 +55,25 @@ function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   return (
     <div className="mt-2">
       <button
-        disabled={!account || !api || busy}
+        disabled={!account || !api || !connected || busy}
         onClick={async () => {
           const ok = await send(api!.tx.referenda.placeDecisionDeposit(refIndex));
           if (ok)
             await queryClient.invalidateQueries({ queryKey: ["referendum", refIndex] });
         }}
         className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-          !account || busy
+          !account || !api || !connected || busy
             ? "cursor-not-allowed bg-surface-2 text-muted"
             : "bg-warn/20 text-warn hover:opacity-90"
         }`}
       >
         {busy
           ? TX_LABEL[status.state]
-          : account
-            ? "Place decision deposit"
-            : "Connect a wallet to place the deposit"}
+          : !account
+            ? "Connect a wallet to place the deposit"
+            : !api || !connected
+              ? "Vara Network is unavailable"
+              : "Place decision deposit"}
       </button>
       {status.state === "error" && (
         <p className="mt-1 text-xs text-nay">{status.message}</p>
@@ -116,10 +120,23 @@ export default function ReferendumPage({
   const [voteOpen, setVoteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { account } = useWallet();
-  const { data: content } = useContent(index);
+  const {
+    data: content,
+    error: contentError,
+    refetch: refetchContent,
+  } = useContent(index);
   const { finalizedNumber } = useApi();
-  const { data: ref, isPending, error } = useReferendum(index);
-  const { data: history } = useHistory(index);
+  const {
+    data: ref,
+    isPending,
+    error,
+    refetch,
+  } = useReferendum(index);
+  const {
+    data: history,
+    error: historyError,
+    refetch: refetchHistory,
+  } = useHistory(index);
   const tracks = useTracks();
   const issuance = useActiveIssuance();
   const refForCall =
@@ -138,7 +155,10 @@ export default function ReferendumPage({
   }
   if (error) {
     return (
-      <p className="text-nay">Failed to load referendum: {String(error)}</p>
+      <ErrorNotice
+        message={humanizeReadError(`referendum #${index}`)}
+        onRetry={() => void refetch()}
+      />
     );
   }
   if (isPending || !ref) {
@@ -253,6 +273,15 @@ export default function ReferendumPage({
       <div className="min-w-0">
 
         <section>
+          {contentError && (
+            <div className="mb-3">
+              <ErrorNotice
+                message={humanizeReadError("the title and description")}
+                onRetry={() => void refetchContent()}
+                compact
+              />
+            </div>
+          )}
           <div
             className={
               content?.contentMd || remark
@@ -260,7 +289,11 @@ export default function ReferendumPage({
                 : "rounded-[14px] border border-dashed border-line p-4"
             }
           >
-            {content?.contentMd ? (
+            {contentError ? (
+              <p className="text-sm text-muted">
+                The description is temporarily unavailable.
+              </p>
+            ) : content?.contentMd ? (
               <Markdown dropCap>{content.contentMd}</Markdown>
             ) : remark ? (
               <>
@@ -271,7 +304,7 @@ export default function ReferendumPage({
               <p className="text-sm text-muted">No description has been provided yet.</p>
             )}
 
-            {canEditContent ? (
+            {!contentError && canEditContent ? (
               <button
                 onClick={() => setEditOpen(true)}
                 className="btn btn-soft mt-4"
@@ -279,7 +312,7 @@ export default function ReferendumPage({
                 <FilePenLine size={15} />
                 {content?.title ? "Edit title & description" : "Add title & description"}
               </button>
-            ) : !content?.title ? (
+            ) : !contentError && !content?.title ? (
               <p className="mt-3 text-xs text-muted">
                 {account
                   ? "Only the on-chain proposer can add the title and description."
@@ -304,14 +337,24 @@ export default function ReferendumPage({
           )}
         </section>
 
-        <VoteStatistics
-          votes={history?.votes ?? []}
-          electorate={
-            isOngoing
-              ? issuance
-              : history?.referendum?.finalTally?.electorate ?? null
-          }
-        />
+        {historyError ? (
+          <div className="mt-6">
+            <ErrorNotice
+              message={humanizeReadError("historical voting data")}
+              onRetry={() => void refetchHistory()}
+              compact
+            />
+          </div>
+        ) : (
+          <VoteStatistics
+            votes={history?.votes ?? []}
+            electorate={
+              isOngoing
+                ? issuance
+                : history?.referendum?.finalTally?.electorate ?? null
+            }
+          />
+        )}
 
         <Comments refIndex={ref.index} />
       </div>

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { SS58_PREFIX } from "./format";
+import { humanizeTxError } from "./errors";
 
 // Wallet readiness is a 4-state machine, never a single "not ready" flag:
 export type WalletStatus =
@@ -23,6 +24,7 @@ type WalletContextValue = {
   status: WalletStatus;
   accounts: InjectedAccountWithMeta[];
   account: InjectedAccountWithMeta | null;
+  error: string | null;
   connect: () => Promise<void>;
   select: (address: string) => void;
   disconnect: () => void;
@@ -32,6 +34,7 @@ const WalletContext = createContext<WalletContextValue>({
   status: "idle",
   accounts: [],
   account: null,
+  error: null,
   connect: async () => {},
   select: () => {},
   disconnect: () => {},
@@ -43,9 +46,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<WalletStatus>("idle");
   const [accounts, setAccounts] = useState<InjectedAccountWithMeta[]>([]);
   const [account, setAccount] = useState<InjectedAccountWithMeta | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const connect = useCallback(async () => {
     setStatus("loading");
+    setError(null);
     try {
       const { web3Enable, web3Accounts } = await import(
         "@polkadot/extension-dapp"
@@ -68,8 +73,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const preselected = accs.find((a) => a.address === saved);
       if (preselected) setAccount(preselected);
       setStatus("ready");
-    } catch {
-      setStatus("no-extension");
+    } catch (connectError) {
+      setStatus("idle");
+      setError(humanizeTxError(connectError));
     }
   }, []);
 
@@ -99,6 +105,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setAccount(null);
     setAccounts([]);
     setStatus("idle");
+    setError(null);
     try {
       localStorage.removeItem(LS_KEY);
     } catch {}
@@ -106,7 +113,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ status, accounts, account, connect, select, disconnect }}
+      value={{ status, accounts, account, error, connect, select, disconnect }}
     >
       {children}
     </WalletContext.Provider>

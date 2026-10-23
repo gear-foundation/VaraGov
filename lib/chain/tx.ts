@@ -5,6 +5,9 @@ import type { ISubmittableResult } from "@polkadot/types/types";
 import type { DispatchError } from "@polkadot/types/interfaces";
 import { useCallback, useState } from "react";
 import { useWallet, getSigner } from "./wallet";
+import { humanizeTxError, humanizeTxStatus } from "./errors";
+
+export { humanizeTxError } from "./errors";
 
 export type TxStatus =
   | { state: "idle" }
@@ -65,7 +68,9 @@ export function useSendTx() {
                   let message = "Transaction failed on chain.";
                   if (dispatchError?.isModule) {
                     const decoded = tx.registry.findMetaError(dispatchError.asModule);
-                    message = `${decoded.section}.${decoded.name}: ${decoded.docs.join(" ")}`;
+                    message = humanizeTxError(
+                      `${decoded.section}.${decoded.name}: ${decoded.docs.join(" ")}`,
+                    );
                   }
                   setStatus({
                     state: "error",
@@ -81,7 +86,7 @@ export function useSendTx() {
                 try {
                   onInBlock?.(result);
                 } catch (error) {
-                  setStatus({ state: "error", message: (error as Error).message });
+                  setStatus({ state: "error", message: humanizeTxError(error) });
                   finish(false);
                 }
               } else if (result.status.isFinalized) {
@@ -99,7 +104,7 @@ export function useSendTx() {
               ) {
                 setStatus({
                   state: "error",
-                  message: `Transaction ${result.status.type.toLowerCase()}.`,
+                  message: humanizeTxStatus(result.status.type),
                 });
                 finish(false);
               }
@@ -111,12 +116,12 @@ export function useSendTx() {
             })
             .catch((e: Error) => {
               // User cancelled in the extension or signing failed.
-              setStatus({ state: "error", message: e.message });
+              setStatus({ state: "error", message: humanizeTxError(e) });
               finish(false);
             });
         });
       } catch (e) {
-        setStatus({ state: "error", message: (e as Error).message });
+        setStatus({ state: "error", message: humanizeTxError(e) });
         return false;
       }
     },

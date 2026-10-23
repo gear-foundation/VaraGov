@@ -7,7 +7,7 @@ import {
 } from "@/lib/chain/hooks";
 
 export default function FellowshipPage() {
-  const { data: referenda, isPending, error } = useFellowshipReferendaList();
+  const { data: referenda, isPending, error, refetch } = useFellowshipReferendaList();
   const tracks = useFellowshipTracks();
 
   return (
@@ -17,6 +17,7 @@ export default function FellowshipPage() {
       tracks={tracks}
       isPending={isPending}
       error={error}
+      onRetry={() => void refetch()}
     />
   );
 }

@@ -21,11 +21,10 @@ import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
-import { useTracks } from "@/lib/chain/hooks";
-import { useVotingBalance } from "@/lib/chain/voting";
+import { useTracksQuery } from "@/lib/chain/hooks";
+import { useVotingBalanceQuery } from "@/lib/chain/voting";
 import { trackOrigin, type TrackInfo } from "@/lib/chain/tracks";
 import {
-  DECIMALS,
   blocksToDuration,
   formatVara,
 } from "@/lib/chain/format";
@@ -33,6 +32,9 @@ import { signAndPost } from "@/lib/content";
 import { anchorReferendumMetadata } from "@/lib/chain/metadata";
 import { Seal } from "@/components/Seal";
 import { MAX_TITLE } from "@/lib/sima";
+import { humanizeReadError, humanizeTxError } from "@/lib/chain/errors";
+import { ErrorNotice } from "@/components/ErrorNotice";
+import { parseVaraAmount } from "@/lib/chain/amount";
 
 type ProposalType = "text" | "treasury" | "advanced";
 
@@ -85,10 +87,18 @@ type ExecState = "todo" | "active" | "done" | "skipped" | "error";
 
 export default function NewProposalPage() {
   const router = useRouter();
-  const { api } = useApi();
+  const { api, connected, error: apiError } = useApi();
   const { account } = useWallet();
-  const tracks = useTracks();
-  const balance = useVotingBalance(account?.address);
+  const {
+    data: tracks,
+    error: tracksError,
+    refetch: refetchTracks,
+  } = useTracksQuery();
+  const {
+    data: balance,
+    error: balanceError,
+    refetch: refetchBalance,
+  } = useVotingBalanceQuery(account?.address);
   const { status: txStatus, send } = useSendTx();
 
   const [step, setStep] = useState<StepId>("type");
@@ -105,6 +115,7 @@ export default function NewProposalPage() {
   >([]);
   const [newIndex, setNewIndex] = useState<number | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
+  const parsedTreasuryAmount = useMemo(() => parseVaraAmount(amount), [amount]);
 
   const suggestedTrackName = useMemo(() => {
     if (ptype === "text") return "general_admin";
@@ -130,12 +141,8 @@ export default function NewProposalPage() {
         return api.tx.system.remark(`VaraGov:${h}`);
       }
       if (ptype === "treasury") {
-        const v = new BigNumber(amount || "0");
-        if (v.lte(0) || !beneficiary) return null;
-        const planck = new BN(
-          v.times(new BigNumber(10).pow(DECIMALS)).toFixed(0, BigNumber.ROUND_DOWN),
-        );
-        return api.tx.treasury.spendLocal(planck, beneficiary);
+        if (!parsedTreasuryAmount.ok || !beneficiary) return null;
+        return api.tx.treasury.spendLocal(parsedTreasuryAmount.planck, beneficiary);
       }
       if (ptype === "advanced") {
         if (!rawHex.startsWith("0x") || rawHex.length < 6) return null;
@@ -145,7 +152,7 @@ export default function NewProposalPage() {
       return null;
     }
     return null;
-  }, [api, ptype, title, content, amount, beneficiary, rawHex]);
+  }, [api, ptype, title, content, parsedTreasuryAmount, beneficiary, rawHex]);
 
   const submissionDeposit = api
     ? ((api.consts.referenda.submissionDeposit as unknown as BN) ?? new BN(0))
@@ -168,6 +175,21 @@ export default function NewProposalPage() {
       ? balance.gt(submissionDeposit)
       : null;
 
+  const buildValidationMessage = useMemo(() => {
+    if (!ptype) return "Choose a proposal type.";
+    if (ptype === "treasury") {
+      if (!parsedTreasuryAmount.ok) return parsedTreasuryAmount.message;
+      if (!beneficiary) return "Enter the beneficiary's Vara address.";
+      if (!callInfo) return "Enter a valid Vara beneficiary address.";
+    }
+    if (ptype === "advanced") {
+      if (!rawHex) return "Paste the 0x-prefixed call data.";
+      if (!callInfo) return "Enter valid call data that can be decoded by Vara.";
+    }
+    if (!track) return "Select a governance track.";
+    return null;
+  }, [ptype, track, parsedTreasuryAmount, beneficiary, rawHex, callInfo]);
+
   function setExec(id: string, state: ExecState, note?: string) {
     setExecSteps((prev) =>
       prev.map((s) => (s.id === id ? { ...s, state, note: note ?? s.note } : s)),
@@ -175,7 +197,7 @@ export default function NewProposalPage() {
   }
 
   async function execute() {
-    if (!api || !account || !call || !track || !callInfo) return;
+    if (!api || !connected || !account || !call || !track || !callInfo) return;
     setExecError(null);
     const plan = [
       { id: "preimage", label: "Register preimage (preimage.notePreimage)", state: "todo" as ExecState },
@@ -186,110 +208,124 @@ export default function NewProposalPage() {
     ];
     setExecSteps(plan);
 
-    // 1. Preimage — skipped when the exact preimage already exists on chain.
-    setExec("preimage", "active");
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const existing: any = await api.query.preimage.preimageFor([
-      callInfo.hash,
-      callInfo.len,
-    ]);
-    if (existing.isSome) {
-      setExec("preimage", "skipped", "Preimage already on chain");
-    } else {
-      const ok = await send(api.tx.preimage.notePreimage(callInfo.hex));
-      if (!ok) {
-        setExec("preimage", "error");
-        setExecError("Preimage registration failed or was cancelled.");
-        return;
-      }
-      setExec("preimage", "done");
-    }
-
-    // 2. Submit; the referendum index comes from the Submitted event.
-    setExec("submit", "active");
-    let refIndex: number | null = null;
-    const okSubmit = await send(
-      api.tx.referenda.submit(
-        trackOrigin(track) as any,
-        { Lookup: { hash: callInfo.hash, len: callInfo.len } },
-        { After: track.minEnactmentPeriod },
-      ),
-      (result) => {
-        for (const { event } of result.events) {
-          if (event.section === "referenda" && event.method === "Submitted") {
-            refIndex = (event.data[0] as any).toNumber();
-          }
+    try {
+      // 1. Preimage — skipped when the exact preimage already exists on chain.
+      setExec("preimage", "active");
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const existing: any = await api.query.preimage.preimageFor([
+        callInfo.hash,
+        callInfo.len,
+      ]);
+      if (existing.isSome) {
+        setExec("preimage", "skipped", "Preimage already on chain");
+      } else {
+        const ok = await send(api.tx.preimage.notePreimage(callInfo.hex));
+        if (!ok) {
+          setExec("preimage", "error");
+          setExecError("Preimage registration was not completed.");
+          return;
         }
-      },
-    );
-    if (!okSubmit || refIndex === null) {
-      setExec("submit", "error");
-      setExecError(
-        okSubmit
-          ? "Could not find the Submitted event — check the referenda list."
-          : "Referendum submission failed or was cancelled.",
-      );
-      return;
-    }
-    setExec("submit", "done", `Referendum #${refIndex}`);
-    setNewIndex(refIndex);
+        setExec("preimage", "done");
+      }
 
-    // 3. Off-chain title/description (SIMA signed message).
-    setExec("sima", "active");
-    const saved = await signAndPost(
-      "/api/content",
-      {
-        action: "provide_context",
-        network: "vara",
-        refIndex,
-        title: title.trim() || `Referendum #${refIndex}`,
-        content,
-        timestamp: Date.now(),
-      },
-      account,
-    );
-    if (!saved.ok) {
-      setExec("sima", "error", saved.error);
-      setExecError(
-        `Referendum #${refIndex} is on chain, but saving the description failed: ${saved.error}. You can add it later from the referendum page.`,
-      );
-      return;
-    }
-    setExec("sima", "done");
-
-    // 4–5. Store the exact signed payload as a preimage, then anchor its hash.
-    if (saved.contentHash) {
-      const anchored = await anchorReferendumMetadata(
-        api,
-        refIndex,
-        saved.contentHash,
-        saved.payloadHex,
-        send,
-        (stage) => {
-          if (stage === "preimage") setExec("metadata-preimage", "active");
-          else {
-            setExec("metadata-preimage", "done");
-            setExec("anchor", "active");
+      // 2. Submit; the referendum index comes from the Submitted event.
+      setExec("submit", "active");
+      let refIndex: number | null = null;
+      const okSubmit = await send(
+        api.tx.referenda.submit(
+          trackOrigin(track) as any,
+          { Lookup: { hash: callInfo.hash, len: callInfo.len } },
+          { After: track.minEnactmentPeriod },
+        ),
+        (result) => {
+          for (const { event } of result.events) {
+            if (event.section === "referenda" && event.method === "Submitted") {
+              refIndex = (event.data[0] as any).toNumber();
+            }
           }
         },
       );
-      setExec(
-        "metadata-preimage",
-        anchored.ok || anchored.stage === "metadata" ? "done" : "error",
-        anchored.ok && anchored.preimage === "existing" ? "Already on chain" : undefined,
-      );
-      setExec("anchor", anchored.ok ? "done" : anchored.stage === "metadata" ? "error" : "todo");
-      if (!anchored.ok) {
+      if (!okSubmit || refIndex === null) {
+        setExec("submit", "error");
         setExecError(
-          anchored.stage === "preimage"
-            ? "Registering the description preimage failed (the description is still saved). You can retry from the referendum page."
-            : "Anchoring failed (the description is still saved). You can retry from the referendum page.",
+          okSubmit
+            ? "The referendum was submitted, but its number could not be read. Check the referenda list before retrying."
+            : "Referendum submission was not completed.",
         );
         return;
       }
-    } else {
-      setExec("metadata-preimage", "skipped");
-      setExec("anchor", "skipped");
+      setExec("submit", "done", `Referendum #${refIndex}`);
+      setNewIndex(refIndex);
+
+      // 3. Off-chain title/description (SIMA signed message).
+      setExec("sima", "active");
+      const saved = await signAndPost(
+        "/api/content",
+        {
+          action: "provide_context",
+          network: "vara",
+          refIndex,
+          title: title.trim() || `Referendum #${refIndex}`,
+          content,
+          timestamp: Date.now(),
+        },
+        account,
+      );
+      if (!saved.ok) {
+        setExec("sima", "error", saved.error);
+        setExecError(
+          `Referendum #${refIndex} is on chain, but its description was not saved: ${saved.error} You can add it later from the referendum page.`,
+        );
+        return;
+      }
+      setExec("sima", "done");
+
+      // 4–5. Store the exact signed payload as a preimage, then anchor its hash.
+      if (saved.contentHash) {
+        const anchored = await anchorReferendumMetadata(
+          api,
+          refIndex,
+          saved.contentHash,
+          saved.payloadHex,
+          send,
+          (stage) => {
+            if (stage === "preimage") setExec("metadata-preimage", "active");
+            else {
+              setExec("metadata-preimage", "done");
+              setExec("anchor", "active");
+            }
+          },
+        );
+        setExec(
+          "metadata-preimage",
+          anchored.ok || anchored.stage === "metadata" ? "done" : "error",
+          anchored.ok && anchored.preimage === "existing"
+            ? "Already on chain"
+            : undefined,
+        );
+        setExec(
+          "anchor",
+          anchored.ok ? "done" : anchored.stage === "metadata" ? "error" : "todo",
+        );
+        if (!anchored.ok) {
+          setExecError(
+            anchored.stage === "preimage"
+              ? "The description is saved, but its on-chain preimage was not registered. You can retry from the referendum page."
+              : "The description is saved, but its hash was not anchored on chain. You can retry from the referendum page.",
+          );
+          return;
+        }
+      } else {
+        setExec("metadata-preimage", "skipped");
+        setExec("anchor", "skipped");
+      }
+    } catch (error) {
+      setExecSteps((current) =>
+        current.map((item) =>
+          item.state === "active" ? { ...item, state: "error" } : item,
+        ),
+      );
+      setExecError(humanizeTxError(error));
     }
   }
 
@@ -348,6 +384,12 @@ export default function NewProposalPage() {
 
       {step === "build" && ptype && (
         <div className="mt-6 space-y-4">
+          {tracksError && (
+            <ErrorNotice
+              message={humanizeReadError("governance tracks")}
+              onRetry={() => void refetchTracks()}
+            />
+          )}
           {ptype === "treasury" && (
             <div className="panel p-4">
               <label className="mb-1 block text-xs text-muted" htmlFor="amount">
@@ -359,8 +401,13 @@ export default function NewProposalPage() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(",", "."))}
                 placeholder="10000"
-                className="input tnum mb-3"
+                className={`input tnum mb-1 ${
+                  amount.trim() && !parsedTreasuryAmount.ok ? "!border-nay" : ""
+                }`}
               />
+              {amount.trim() && !parsedTreasuryAmount.ok && (
+                <p className="mb-3 text-xs text-nay">{parsedTreasuryAmount.message}</p>
+              )}
               <label className="mb-1 block text-xs text-muted" htmlFor="beneficiary">
                 Beneficiary address (Vara, ss58)
               </label>
@@ -450,12 +497,15 @@ export default function NewProposalPage() {
             </button>
             <button
               onClick={() => setStep("content")}
-              disabled={!track || (ptype !== "text" && !callInfo)}
+              disabled={buildValidationMessage !== null}
               className="btn btn-primary"
             >
               Continue <ChevronRight size={15} />
             </button>
           </div>
+          {buildValidationMessage && (
+            <p className="text-right text-xs text-muted">{buildValidationMessage}</p>
+          )}
         </div>
       )}
 
@@ -498,11 +548,23 @@ export default function NewProposalPage() {
               Continue <ChevronRight size={15} />
             </button>
           </div>
+          {!title.trim() && (
+            <p className="text-right text-xs text-muted">
+              Enter a title before continuing.
+            </p>
+          )}
         </div>
       )}
 
       {step === "review" && track && callInfo && (
         <div className="mt-6 space-y-4">
+          {balanceError && (
+            <ErrorNotice
+              message={humanizeReadError("your account balance")}
+              onRetry={() => void refetchBalance()}
+            />
+          )}
+          {apiError && !connected && <ErrorNotice message={apiError} />}
           <div className="panel p-4 text-sm">
             <h3 className="mb-2 font-medium">{title}</h3>
             <p className="text-xs text-muted">
@@ -547,10 +609,16 @@ export default function NewProposalPage() {
                 setStep("execute");
                 void execute();
               }}
-              disabled={!account || enoughBalance === false}
+              disabled={!account || !connected || enoughBalance !== true}
               className="btn btn-primary"
             >
-              {account ? "Sign & submit" : "Connect a wallet first"}
+              {!account
+                ? "Connect a wallet first"
+                : !connected
+                  ? "Vara Network is unavailable"
+                : enoughBalance === null
+                  ? "Checking balance…"
+                  : "Sign & submit"}
             </button>
           </div>
         </div>
@@ -588,7 +656,11 @@ export default function NewProposalPage() {
           {isTxPending(txStatus) && (
             <p className="text-sm text-muted">{TX_LABEL[txStatus.state]}</p>
           )}
-          {execError && <p className="text-sm text-nay">{execError}</p>}
+          {txStatus.state === "error" ? (
+            <ErrorNotice message={txStatus.message} compact />
+          ) : execError ? (
+            <ErrorNotice message={execError} compact />
+          ) : null}
 
           {newIndex !== null && !execError && execSteps.every((s) => s.state !== "active") && (
             <div className="panel flex items-start gap-4 p-4">
@@ -614,6 +686,11 @@ export default function NewProposalPage() {
               className="btn btn-ghost"
             >
               Open referendum #{newIndex}
+            </button>
+          )}
+          {execError && newIndex === null && (
+            <button onClick={() => setStep("review")} className="btn btn-ghost">
+              <ArrowLeft size={15} /> Back to review
             </button>
           )}
         </div>

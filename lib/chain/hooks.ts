@@ -12,15 +12,14 @@ import {
 } from "./referenda";
 import { getFellowshipTracks, getTracks, type TrackInfo } from "./tracks";
 
-export function useTracks(): TrackInfo[] | undefined {
+export function useTracksQuery() {
   const { api } = useApi();
-  const { data } = useQuery({
+  return useQuery({
     queryKey: ["tracks"],
     queryFn: () => getTracks(api!),
     enabled: !!api,
     staleTime: Infinity,
   });
-  return data;
 }
 
 export function useReferendaList() {
@@ -105,4 +104,8 @@ export function useDecodedCall(ref: Referendum | null | undefined) {
     enabled: !!api && !!ref && !!(ref.proposalHash || ref.inlineHex),
     staleTime: Infinity,
   });
+}
+
+export function useTracks(): TrackInfo[] | undefined {
+  return useTracksQuery().data;
 }

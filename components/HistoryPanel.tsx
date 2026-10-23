@@ -277,6 +277,7 @@ export function VoteStatistics({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copiedVoter, setCopiedVoter] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -292,10 +293,12 @@ export function VoteStatistics({
     try {
       await navigator.clipboard.writeText(address);
       setCopiedVoter(address);
+      setCopyError(false);
       if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
       copyResetTimer.current = setTimeout(() => setCopiedVoter(null), 1_800);
     } catch {
       setCopiedVoter(null);
+      setCopyError(true);
     }
   };
 
@@ -399,8 +402,14 @@ export function VoteStatistics({
           <ChevronDown size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>
         {expanded && (
-          <div className="mt-3 divide-y divide-line">
-            {votes.map((vote) => {
+          <div className="mt-3">
+            {copyError && (
+              <p role="alert" className="mb-2 text-xs text-nay">
+                The address could not be copied. Select it manually and try again.
+              </p>
+            )}
+            <div className="divide-y divide-line">
+              {votes.map((vote) => {
               const { side, amount } = voteAmount(vote);
               return (
                 <div key={vote.voter} className="flex items-center justify-between gap-3 py-2 text-xs">
@@ -430,8 +439,9 @@ export function VoteStatistics({
                     {vote.conviction !== null && ` · ${CONVICTIONS[vote.conviction]?.label ?? ""}`}
                   </span>
                 </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

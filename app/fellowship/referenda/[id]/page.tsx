@@ -11,6 +11,8 @@ import {
   useFellowshipTracks,
 } from "@/lib/chain/hooks";
 import { shortAddress } from "@/lib/chain/format";
+import { ErrorNotice } from "@/components/ErrorNotice";
+import { humanizeReadError } from "@/lib/chain/errors";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -28,7 +30,12 @@ export default function FellowshipReferendumPage({
 }) {
   const { id } = use(params);
   const index = Number(id);
-  const { data: referendum, isPending, error } = useFellowshipReferendum(index);
+  const {
+    data: referendum,
+    isPending,
+    error,
+    refetch,
+  } = useFellowshipReferendum(index);
   const tracks = useFellowshipTracks();
   const track = tracks?.find((candidate) => candidate.id === referendum?.trackId);
   const { data: call } = useDecodedCall(referendum);
@@ -48,8 +55,11 @@ export default function FellowshipReferendumPage({
       </Link>
 
       {error ? (
-        <div className="panel mt-5 p-6 text-sm text-nay">
-          Failed to load Fellowship referendum from RPC: {String(error)}
+        <div className="mt-5">
+          <ErrorNotice
+            message={humanizeReadError(`Fellowship referendum #${index}`)}
+            onRetry={() => void refetch()}
+          />
         </div>
       ) : isPending || !referendum ? (
         <div className="skeleton mt-5 h-64" aria-busy="true" />

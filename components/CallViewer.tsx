@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronRight, Copy } from "lucide-react";
+import { Check, ChevronRight, CircleAlert, Copy } from "lucide-react";
 import {
   callTreeToJson,
   isDecodedCallNode,
@@ -71,14 +71,17 @@ function HighlightedJson({ value, beautified }: { value: unknown; beautified: bo
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
+      setFailed(false);
       window.setTimeout(() => setCopied(false), 1_500);
     } catch {
       setCopied(false);
+      setFailed(true);
     }
   };
 
@@ -87,10 +90,16 @@ function CopyButton({ value }: { value: string }) {
       type="button"
       onClick={copy}
       className="btn btn-ghost h-7 w-7 shrink-0 !p-0 text-muted"
-      aria-label="Copy value"
-      title={copied ? "Copied" : "Copy"}
+      aria-label={failed ? "Copy failed; select the value manually" : "Copy value"}
+      title={failed ? "Copy failed — select the value manually" : copied ? "Copied" : "Copy"}
     >
-      {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+      {failed ? (
+        <CircleAlert size={13} className="text-nay" aria-hidden="true" />
+      ) : copied ? (
+        <Check size={13} aria-hidden="true" />
+      ) : (
+        <Copy size={13} aria-hidden="true" />
+      )}
     </button>
   );
 }

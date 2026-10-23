@@ -10,6 +10,7 @@ import { signAndPost, type RefContent } from "@/lib/content";
 import { MAX_TITLE } from "@/lib/sima";
 import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
 import { anchorReferendumMetadata } from "@/lib/chain/metadata";
+import { ErrorNotice } from "@/components/ErrorNotice";
 
 // Proposer-only editor for title + markdown description.
 // Flow: sign SIMA message -> POST -> note exact payload preimage -> optional metadata anchor.
@@ -22,7 +23,7 @@ export function EditContent({
   existing: RefContent;
   onClose: () => void;
 }) {
-  const { api } = useApi();
+  const { api, connected, error: apiError } = useApi();
   const { account } = useWallet();
   const queryClient = useQueryClient();
   const { status: txStatus, send } = useSendTx();
@@ -37,6 +38,7 @@ export function EditContent({
   const canAnchor =
     savedHash !== null &&
     savedPayloadHex !== null &&
+    connected &&
     ONGOING_PHASES.includes(referendum.phase) &&
     !!api?.tx.referenda.setMetadata &&
     !!api?.tx.preimage.notePreimage;
@@ -69,7 +71,7 @@ export function EditContent({
   }
 
   async function anchor() {
-    if (!api || !savedHash || !savedPayloadHex) return;
+    if (!api || !connected || !savedHash || !savedPayloadHex) return;
     const result = await anchorReferendumMetadata(
       api,
       referendum.index,
@@ -140,6 +142,16 @@ export function EditContent({
             >
               {busy ? "Signing…" : "Sign & save"}
             </button>
+            {!account && (
+              <p className="mt-2 text-xs text-muted">
+                Connect the proposer wallet to sign and save this content.
+              </p>
+            )}
+            {account && !title.trim() && (
+              <p className="mt-2 text-xs text-muted">
+                Enter a title before signing.
+              </p>
+            )}
             <p className="mt-2 text-xs text-muted">
               Saved off-chain as a wallet-signed message; only the on-chain
               proposer is accepted by the server.
@@ -184,12 +196,16 @@ export function EditContent({
                 )}
               </>
             ) : (
-              <button
-                onClick={onClose}
-                className="btn btn-ghost mt-3"
-              >
-                Close
-              </button>
+              <>
+                {apiError && !connected && (
+                  <div className="mt-3">
+                    <ErrorNotice message={apiError} compact />
+                  </div>
+                )}
+                <button onClick={onClose} className="btn btn-ghost mt-3">
+                  Close
+                </button>
+              </>
             )}
           </div>
         )}

@@ -8,6 +8,8 @@ import { ReferendumRow, Skeleton } from "@/components/referenda";
 import type { RefMeta } from "@/lib/content";
 import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
+import { humanizeReadError } from "@/lib/chain/errors";
+import { ErrorNotice } from "@/components/ErrorNotice";
 
 const TABS = ["All", "Ongoing", "Approved", "Rejected"] as const;
 type Tab = (typeof TABS)[number];
@@ -50,6 +52,7 @@ export function ReferendaDirectory({
   meta,
   isPending,
   error,
+  onRetry,
 }: {
   kind: DirectoryKind;
   referenda: Referendum[] | undefined;
@@ -57,6 +60,7 @@ export function ReferendaDirectory({
   meta?: Map<number, RefMeta>;
   isPending: boolean;
   error: Error | null;
+  onRetry: () => void;
 }) {
   const copy = COPY[kind];
   const [tab, setTab] = useState<Tab>("All");
@@ -179,9 +183,12 @@ export function ReferendaDirectory({
       </div>
 
       {error ? (
-        <div className="panel p-6 text-sm text-nay">
-          Failed to load referenda from RPC: {String(error)}. Retrying…
-        </div>
+        <ErrorNotice
+          message={humanizeReadError(
+            kind === "token" ? "referenda from Vara Network" : "Fellowship referenda",
+          )}
+          onRetry={onRetry}
+        />
       ) : isPending ? (
         <Skeleton />
       ) : filtered.length === 0 ? (

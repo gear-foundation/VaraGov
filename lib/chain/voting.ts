@@ -86,9 +86,9 @@ export function useMyVote(
   });
 }
 
-export function useVotingBalance(address: string | undefined): BN | undefined {
+export function useVotingBalanceQuery(address: string | undefined) {
   const { api } = useApi();
-  const { data } = useQuery({
+  return useQuery({
     queryKey: ["balance", address],
     queryFn: async () => {
       const account: any = await api!.query.system.account(address!);
@@ -98,5 +98,9 @@ export function useVotingBalance(address: string | undefined): BN | undefined {
     enabled: !!api && !!address,
     refetchInterval: 30_000,
   });
+}
+
+export function useVotingBalance(address: string | undefined): BN | undefined {
+  const { data } = useVotingBalanceQuery(address);
   return data ?? (address ? undefined : BN_ZERO);
 }

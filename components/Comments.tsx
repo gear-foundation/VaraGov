@@ -6,6 +6,8 @@ import { useWallet } from "@/lib/chain/wallet";
 import { useComments, signAndPost, type CommentDto } from "@/lib/content";
 import { shortAddress } from "@/lib/chain/format";
 import { Markdown } from "./Markdown";
+import { ErrorNotice } from "./ErrorNotice";
+import { humanizeReadError } from "@/lib/chain/errors";
 
 function CommentItem({
   c,
@@ -54,7 +56,12 @@ function CommentItem({
 
 export function Comments({ refIndex }: { refIndex: number }) {
   const { account } = useWallet();
-  const { data: comments, isPending } = useComments(refIndex);
+  const {
+    data: comments,
+    isPending,
+    error: loadError,
+    refetch,
+  } = useComments(refIndex);
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -101,6 +108,12 @@ export function Comments({ refIndex }: { refIndex: number }) {
 
       {isPending ? (
         <div className="skeleton h-16" />
+      ) : loadError ? (
+        <ErrorNotice
+          message={humanizeReadError("comments")}
+          onRetry={() => void refetch()}
+          compact
+        />
       ) : roots.length === 0 ? (
         <p className="rounded-[14px] border border-dashed border-line p-4 text-sm text-muted">
           No comments yet. Be the first.

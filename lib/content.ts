@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { stringToHex } from "@polkadot/util";
 import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import { buildPayloadJson, type SimaPayload } from "./sima";
+import { humanizeApiError, humanizeHttpError, humanizeTxError } from "./chain/errors";
 
 export type RefMeta = {
   title: string | null;
@@ -16,6 +17,7 @@ export function useRefMeta(): Map<number, RefMeta> | undefined {
     queryKey: ["titles"],
     queryFn: async () => {
       const res = await fetch("/api/content");
+      if (!res.ok) throw new Error("Could not load referendum titles.");
       const json = await res.json();
       return new Map<number, RefMeta>(
         (json.titles as ({ index: number } & RefMeta)[]).map((t) => [
@@ -42,6 +44,7 @@ export function useContent(index: number) {
     queryKey: ["content", index],
     queryFn: async (): Promise<RefContent> => {
       const res = await fetch(`/api/content/${index}`);
+      if (!res.ok) throw new Error("Could not load referendum content.");
       const json = await res.json();
       return json.content ?? null;
     },
@@ -63,6 +66,7 @@ export function useComments(index: number) {
     queryKey: ["comments", index],
     queryFn: async (): Promise<CommentDto[]> => {
       const res = await fetch(`/api/comments/${index}`);
+      if (!res.ok) throw new Error("Could not load comments.");
       const json = await res.json();
       return json.comments ?? [];
     },
@@ -95,15 +99,28 @@ export async function signAndPost(
       data: payloadHex,
       type: "bytes",
     });
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payloadJson, address: account.address, signature }),
-    });
-    const json = await res.json();
-    if (!res.ok) return { ok: false, error: json.error ?? `HTTP ${res.status}` };
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payloadJson, address: account.address, signature }),
+      });
+    } catch {
+      return { ok: false, error: humanizeHttpError() };
+    }
+    const json = await res.json().catch(() => null);
+    if (!json || typeof json !== "object") {
+      return { ok: false, error: humanizeApiError(undefined, 500) };
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: humanizeApiError("error" in json ? json.error : undefined, res.status),
+      };
+    }
     return { ok: true, ...json, payloadHex };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    return { ok: false, error: humanizeTxError(e) };
   }
 }

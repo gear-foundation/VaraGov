@@ -5,9 +5,10 @@ import { createPortal } from "react-dom";
 import { Wallet, X, Check } from "lucide-react";
 import { useWallet } from "@/lib/chain/wallet";
 import { shortAddress } from "@/lib/chain/format";
+import { ErrorNotice } from "@/components/ErrorNotice";
 
 export function WalletButton() {
-  const { status, accounts, account, connect, select, disconnect } = useWallet();
+  const { status, accounts, account, error, connect, select, disconnect } = useWallet();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   // Portal target exists only after mount (SSR renders no document).
@@ -70,8 +71,8 @@ export function WalletButton() {
             {status === "no-extension" && (
               <div className="text-sm text-muted">
                 <p>
-                  No Vara-compatible wallet extension found. Install one, then
-                  reload this page:
+                  No Vara-compatible wallet was detected, or wallet access was
+                  denied. Check the extension and try again:
                 </p>
                 <ul className="mt-2 list-disc pl-5">
                   <li>SubWallet</li>
@@ -83,9 +84,13 @@ export function WalletButton() {
 
             {status === "no-account" && (
               <p className="text-sm text-muted">
-                The extension is installed but has no accounts, or access was
-                denied. Create/allow an account in the extension and try again.
+                The wallet is connected but has no available accounts. Create or
+                enable an account in the extension, then try again.
               </p>
+            )}
+
+            {error && (
+              <ErrorNotice message={error} onRetry={() => void connect()} compact />
             )}
 
             {(status === "idle" || status === "no-extension") && (

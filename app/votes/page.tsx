@@ -5,11 +5,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
-import { useTracks } from "@/lib/chain/hooks";
+import { useTracksQuery } from "@/lib/chain/hooks";
 import { CONVICTIONS } from "@/lib/chain/voting";
 import { formatVara, shortAddress } from "@/lib/chain/format";
 import type { BN } from "@polkadot/util";
 import { Skeleton } from "@/components/referenda";
+import { ErrorNotice } from "@/components/ErrorNotice";
+import { humanizeReadError } from "@/lib/chain/errors";
 
 type VoteRow = {
   trackId: number;
@@ -74,13 +76,23 @@ function parseTrackVoting(trackId: number, voting: any): TrackState {
 }
 
 export default function MyVotesPage() {
-  const { api, finalizedNumber } = useApi();
-  const { account, status: walletStatus, connect } = useWallet();
-  const tracks = useTracks();
+  const { api, connected, finalizedNumber, error: apiError } = useApi();
+  const { account, status: walletStatus, error: walletError, connect } = useWallet();
+  const {
+    data: tracks,
+    isPending: tracksPending,
+    error: tracksError,
+    refetch: refetchTracks,
+  } = useTracksQuery();
   const queryClient = useQueryClient();
   const { status, send } = useSendTx();
 
-  const { data: states, isPending } = useQuery({
+  const {
+    data: states,
+    isPending,
+    error: votesError,
+    refetch,
+  } = useQuery({
     queryKey: ["myVotes", account?.address],
     queryFn: async () => {
       const results = await Promise.all(
@@ -109,11 +121,17 @@ export default function MyVotesPage() {
             No wallet extension found — install SubWallet, Talisman or polkadot.js.
           </p>
         )}
+        {walletError && (
+          <div className="mt-3">
+            <ErrorNotice message={walletError} compact />
+          </div>
+        )}
         <button
           onClick={() => void connect()}
+          disabled={walletStatus === "loading"}
           className="btn btn-soft mt-4"
         >
-          Connect wallet
+          {walletStatus === "loading" ? "Connecting…" : "Connect wallet"}
         </button>
       </div>
     );
@@ -124,15 +142,17 @@ export default function MyVotesPage() {
     tracks?.find((t) => t.id === id)?.displayName ?? `Track ${id}`;
 
   async function remove(row: VoteRow) {
+    if (!api || !connected) return;
     const ok = await send(
-      api!.tx.convictionVoting.removeVote(row.trackId, row.refIndex),
+      api.tx.convictionVoting.removeVote(row.trackId, row.refIndex),
     );
     if (ok) await queryClient.invalidateQueries({ queryKey: ["myVotes"] });
   }
 
   async function unlock(trackId: number) {
+    if (!api || !connected) return;
     const ok = await send(
-      api!.tx.convictionVoting.unlock(trackId, account!.address),
+      api.tx.convictionVoting.unlock(trackId, account!.address),
     );
     if (ok) await queryClient.invalidateQueries({ queryKey: ["myVotes"] });
   }
@@ -146,11 +166,30 @@ export default function MyVotesPage() {
       </p>
 
       {status.state === "error" && (
-        <p className="mt-3 text-sm text-nay">{status.message}</p>
+        <div className="mt-3">
+          <ErrorNotice message={status.message} compact />
+        </div>
+      )}
+      {apiError && !connected && (
+        <div className="mt-3">
+          <ErrorNotice message={apiError} compact />
+        </div>
       )}
       {busy && <p className="mt-3 text-sm text-muted">{TX_LABEL[status.state]}</p>}
 
-      {isPending ? (
+      {votesError || tracksError ? (
+        <div className="mt-6">
+          <ErrorNotice
+            message={humanizeReadError(
+              tracksError ? "governance tracks" : "votes from Vara Network",
+            )}
+            onRetry={() => {
+              void refetchTracks();
+              void refetch();
+            }}
+          />
+        </div>
+      ) : isPending || tracksPending ? (
         <div className="mt-6">
           <Skeleton rows={3} />
         </div>
@@ -190,7 +229,8 @@ export default function MyVotesPage() {
                   </span>
                   <button
                     onClick={() => void remove(row)}
-                    disabled={busy}
+                    disabled={busy || !connected}
+                    title={!connected ? "Vara Network is unavailable" : undefined}
                     className="text-nay hover:underline disabled:opacity-50"
                   >
                     Remove
@@ -214,6 +254,7 @@ export default function MyVotesPage() {
                     onClick={() => void unlock(s.trackId)}
                     disabled={
                       busy ||
+                      !connected ||
                       (s.priorUnlockAt !== null &&
                         finalizedNumber !== null &&
                         s.priorUnlockAt > finalizedNumber)
