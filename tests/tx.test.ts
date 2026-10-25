@@ -60,6 +60,14 @@ test("known runtime errors use product language", () => {
     humanizeTxError(new Error("referenda.NotOngoing: referendum is not ongoing")),
     "This referendum is no longer ongoing, so this action cannot be completed.",
   );
+  assert.equal(
+    humanizeTxError(new Error("fellowshipCollective.NotMember: account is not a member")),
+    "This account is not a Fellowship member and cannot vote on Fellowship referenda.",
+  );
+  assert.equal(
+    humanizeTxError(new Error("fellowshipCollective.RankTooLow: rank is too low")),
+    "This Fellowship account does not have the rank required to vote on this referendum.",
+  );
 });
 
 test("unknown transaction errors never expose raw provider text", () => {

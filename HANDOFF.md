@@ -68,7 +68,7 @@ app/
   referenda/page.tsx        list (client-side, live from the chain)
   referenda/[id]/page.tsx   details: tally, curves, history, comments, vote
   fellowship/page.tsx       ranked-collective referenda list (live RPC)
-  fellowship/referenda/…    read-only Fellowship referendum details
+  fellowship/referenda/…    Fellowship details + rank-weighted Aye/Nay voting
   new/page.tsx              creation wizard (5 steps, all logic in one file)
   votes/page.tsx            My votes: votes/delegations/locks per track
   api/content/…             GET titles, POST provide_context (SIMA)
@@ -132,12 +132,13 @@ off-chain content is signed messages only; no third-party SaaS/indexers at runti
 
 Priority (before production):
 
-1. **QA of signing with a real wallet** — the only unexercised link. Checklist:
+1. **QA of signing with a real wallet.** Checklist:
    an Aye/Nay/Abstain vote + removeVote + unlock; creating a text proposal via
    the wizard (all 4 signatures of the chain); placeDecisionDeposit; a title via
-   EditContent + setMetadata; a comment. Mainnet currently has no ongoing
-   referenda — test voting when one appears, or run a local Vara node, or wait
-   for a testnet equivalent.
+   EditContent + setMetadata; a comment. Fellowship voting has unit coverage and
+   a live RPC read smoke check, but its signed `fellowshipCollective.vote`
+   transaction still needs an Aye/Nay/change-vote QA pass with a rank-eligible
+   account.
 2. **Phase 6 of SPEC.md**: deploy the `prod` compose profile to a VPS, domain,
    TLS, mobile layout (classes are responsive but never eyeballed), finish
    empty/error states, Lighthouse ≥ 90.
@@ -147,7 +148,7 @@ Priority (before production):
    cursor lag.
 
 Deliberately deferred (v2, see SPEC §2): delegation UI (read-only for now),
-Fellowship voting/creation and historical indexing, a treasury dashboard,
+Fellowship creation and historical indexing, a treasury dashboard,
 notifications, full-text search, event-based
 convictionVoting parsing (votes come from periodic `votingFor` snapshots every
 ~100 blocks — sufficient at Vara's scale), importing the 78 old titles from

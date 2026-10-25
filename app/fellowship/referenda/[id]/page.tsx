@@ -12,6 +12,7 @@ import {
 } from "@/lib/chain/hooks";
 import { shortAddress } from "@/lib/chain/format";
 import { ErrorNotice } from "@/components/ErrorNotice";
+import { FellowshipVotePanel } from "@/components/FellowshipVotePanel";
 import { humanizeReadError } from "@/lib/chain/errors";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -94,6 +95,8 @@ export default function FellowshipReferendumPage({
           </div>
 
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
+            <FellowshipVotePanel referendum={referendum} />
+
             <section className="panel p-4">
               <p className="label-serif mb-3">Collective tally</p>
               {referendum.tally ? (

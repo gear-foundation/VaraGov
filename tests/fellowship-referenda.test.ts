@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BN } from "@polkadot/util";
 import { parseReferendumInfo } from "../lib/chain/referenda";
+import {
+  parseFellowshipMemberRank,
+  parseFellowshipVote,
+} from "../lib/chain/fellowship-voting";
 
 const number = (value: number) => ({
   toNumber: () => value,
@@ -42,4 +46,34 @@ test("parses Fellowship bareAyes without token support", () => {
   assert.equal(parsed?.tally?.ayes.toString(), "19");
   assert.equal(parsed?.tally?.nays.toString(), "0");
   assert.equal(parsed?.tally?.support.toString(), "4");
+});
+
+test("parses a Fellowship member rank and weighted vote", () => {
+  assert.equal(
+    parseFellowshipMemberRank({
+      isNone: false,
+      unwrap: () => ({ rank: number(6) }),
+    }),
+    6,
+  );
+  assert.deepEqual(
+    parseFellowshipVote({
+      isNone: false,
+      unwrap: () => ({ isAye: true, isNay: false, asAye: number(10) }),
+    }),
+    { aye: true, weight: 10 },
+  );
+});
+
+test("handles non-members, absent votes and Nay votes", () => {
+  const none = { isNone: true, unwrap: () => null };
+  assert.equal(parseFellowshipMemberRank(none), null);
+  assert.equal(parseFellowshipVote(none), null);
+  assert.deepEqual(
+    parseFellowshipVote({
+      isNone: false,
+      unwrap: () => ({ isAye: false, isNay: true, asNay: number(3) }),
+    }),
+    { aye: false, weight: 3 },
+  );
 });

@@ -81,6 +81,14 @@ export function humanizeTxError(error: unknown): string {
     return "No active vote was found for this account on the referendum.";
   }
 
+  if (normalized.includes("fellowshipcollective.notmember")) {
+    return "This account is not a Fellowship member and cannot vote on Fellowship referenda.";
+  }
+
+  if (normalized.includes("fellowshipcollective.ranktoolow")) {
+    return "This Fellowship account does not have the rank required to vote on this referendum.";
+  }
+
   const moduleCode = raw.match(/\b([a-z][\w]*\.[A-Z][\w]*)\b/)?.[1];
   if (moduleCode) {
     return `The network rejected this action (${moduleCode}). Review the entered values and try again.`;
