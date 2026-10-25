@@ -10,10 +10,12 @@ import {
   useFellowshipReferendum,
   useFellowshipTracks,
 } from "@/lib/chain/hooks";
-import { shortAddress } from "@/lib/chain/format";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { FellowshipVotePanel } from "@/components/FellowshipVotePanel";
+import { IdentityName } from "@/components/IdentityName";
+import { WhitelistExecutionLinks } from "@/components/WhitelistExecutionLinks";
 import { humanizeReadError } from "@/lib/chain/errors";
+import { useFellowshipWhitelistLinks } from "@/lib/chain/whitelist-links";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -40,6 +42,8 @@ export default function FellowshipReferendumPage({
   const tracks = useFellowshipTracks();
   const track = tracks?.find((candidate) => candidate.id === referendum?.trackId);
   const { data: call } = useDecodedCall(referendum);
+  const { data: whitelistLinks } = useFellowshipWhitelistLinks(index);
+  const proposer = referendum?.proposer ?? whitelistLinks?.proposer ?? null;
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid Fellowship referendum index.</p>;
@@ -54,6 +58,8 @@ export default function FellowshipReferendumPage({
         <ArrowLeft size={14} aria-hidden="true" />
         Fellowship referenda
       </Link>
+
+      <WhitelistExecutionLinks links={whitelistLinks} />
 
       {error ? (
         <div className="mt-5">
@@ -134,8 +140,8 @@ export default function FellowshipReferendumPage({
                     : "—"}
                 </DetailRow>
                 <DetailRow label="Proposer">
-                  {referendum.proposer ? (
-                    <span title={referendum.proposer}>{shortAddress(referendum.proposer)}</span>
+                  {proposer ? (
+                    <IdentityName address={proposer} />
                   ) : (
                     "—"
                   )}

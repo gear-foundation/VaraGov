@@ -68,7 +68,7 @@ app/
   referenda/page.tsx        list (client-side, live from the chain)
   referenda/[id]/page.tsx   details: tally, curves, history, comments, vote
   fellowship/page.tsx       ranked-collective referenda list (live RPC)
-  fellowship/referenda/…    Fellowship details + rank-weighted Aye/Nay voting
+  fellowship/referenda/…    details + voting + linked Whitelisted Caller executions
   new/page.tsx              creation wizard (5 steps, all logic in one file)
   votes/page.tsx            My votes: votes/delegations/locks per track
   api/content/…             GET titles, POST provide_context (SIMA)
@@ -90,7 +90,8 @@ scripts/backfill.mts        one-time history import from the archive node
 scripts/check-*.{ts,mts}    self-checks
 prisma/schema.prisma        Referendum, Comment, Vote, TallySnapshot, WorkerCursor
 components/                 UI: referenda.tsx (cards/pills), VotePopup, WalletButton,
-                            Comments, EditContent, HistoryPanel, CurveChart, Header
+                            IdentityName, Comments, EditContent, HistoryPanel,
+                            CurveChart, Header
 ```
 
 Principles (from SPEC.md §1, in short): live data for ongoing referenda comes

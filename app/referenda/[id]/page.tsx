@@ -35,7 +35,6 @@ import {
   blocksToDuration,
   formatVara,
   percent,
-  shortAddress,
 } from "@/lib/chain/format";
 import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
@@ -46,6 +45,7 @@ import { sameAccount } from "@/lib/chain/address";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { humanizeReadError } from "@/lib/chain/errors";
 import { useReferendumVotes } from "@/lib/chain/voting";
+import { IdentityName } from "@/components/IdentityName";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { api, connected } = useApi();
@@ -242,9 +242,7 @@ export default function ReferendumPage({
         {proposer && (
           <p className="mt-2 text-sm text-muted">
             Proposed by{" "}
-            <span className="tnum" title={proposer}>
-              {shortAddress(proposer)}
-            </span>
+            <IdentityName address={proposer} />
             {ref.submittedAt !== null && finalizedNumber !== null && (
               <>
                 {" · "}
