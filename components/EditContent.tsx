@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
-import { signAndPost, type RefContent } from "@/lib/content";
-import { MAX_TITLE } from "@/lib/sima";
+import { signAndPost, contentKeys, contentEndpoint, type RefContent } from "@/lib/content";
+import { MAX_TITLE, type GovernanceKind } from "@/lib/sima";
 import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
 import { anchorReferendumMetadata } from "@/lib/chain/metadata";
 import { ErrorNotice } from "@/components/ErrorNotice";
@@ -18,14 +20,18 @@ export function EditContent({
   referendum,
   existing,
   onClose,
+  kind = "token",
 }: {
   referendum: Referendum;
   existing: RefContent;
   onClose: () => void;
+  kind?: GovernanceKind;
 }) {
   const { api, connected, error: apiError } = useApi();
   const { account } = useWallet();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pallet = kind === "fellowship" ? "fellowshipReferenda" : "referenda";
   const { status: txStatus, send } = useSendTx();
 
   const [title, setTitle] = useState(existing?.title ?? "");
@@ -40,7 +46,7 @@ export function EditContent({
     savedPayloadHex !== null &&
     connected &&
     ONGOING_PHASES.includes(referendum.phase) &&
-    !!api?.tx.referenda.setMetadata &&
+    !!api?.tx[pallet]?.setMetadata &&
     !!api?.tx.preimage.notePreimage;
 
   async function save() {
@@ -48,10 +54,11 @@ export function EditContent({
     setBusy(true);
     setError(null);
     const result = await signAndPost(
-      "/api/content",
+      contentEndpoint(kind),
       {
         action: "provide_context",
         network: "vara",
+        governance: kind,
         refIndex: referendum.index,
         title: title.trim(),
         content,
@@ -66,8 +73,9 @@ export function EditContent({
     }
     setSavedHash(result.contentHash ?? null);
     setSavedPayloadHex(result.payloadHex);
-    await queryClient.invalidateQueries({ queryKey: ["content", referendum.index] });
-    await queryClient.invalidateQueries({ queryKey: ["titles"] });
+    await queryClient.invalidateQueries({ queryKey: contentKeys.detail(kind, referendum.index) });
+    await queryClient.invalidateQueries({ queryKey: contentKeys.titles(kind) });
+    router.refresh();
   }
 
   async function anchor() {
@@ -78,6 +86,8 @@ export function EditContent({
       savedHash,
       savedPayloadHex,
       send,
+      undefined,
+      kind,
     );
     if (!result.ok) {
       setError(
@@ -88,7 +98,7 @@ export function EditContent({
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="overlay"
       onClick={onClose}
@@ -164,7 +174,7 @@ export function EditContent({
               <>
                 <p className="mt-2 text-sm text-muted">
                   Optionally register the exact signed description as an on-chain
-                  preimage, then anchor its hash via <code>referenda.setMetadata</code>.
+                  preimage, then anchor its hash on chain.
                   The preimage requires a refundable deposit:
                 </p>
                 <p className="tnum mt-1 break-all text-xs text-muted">{savedHash}</p>
@@ -210,6 +220,6 @@ export function EditContent({
           </div>
         )}
       </div>
-    </div>
+    </div>, document.body,
   );
 }

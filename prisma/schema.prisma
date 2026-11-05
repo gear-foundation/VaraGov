@@ -49,6 +49,19 @@ model Comment {
   @@index([author, createdAt])
 }
 
+model FellowshipContent {
+  index          Int      @id
+  trackId        Int?
+  proposer       String
+  title          String
+  contentMd      String
+  contentSig     String
+  contentPayload Json
+  metadataHash   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model CommentSignature {
   signature String   @id
   commentId String

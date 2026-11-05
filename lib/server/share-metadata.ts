@@ -73,13 +73,26 @@ export async function getTokenReferendumShareData(
   }
 }
 
-export function getFellowshipReferendumShareData(index: number): ReferendumShareData {
+export async function getFellowshipReferendumShareData(index: number): Promise<ReferendumShareData> {
   const validIndex = Number.isInteger(index) && index >= 0;
-  return {
+  const fallback: ReferendumShareData = {
     title: validIndex ? `Fellowship referendum #${index}` : "Fellowship referendum",
     description: "Ranked-collective governance proposal on Vara Network.",
     eyebrow: "Vara Network · Ranked collective",
     badge: "Fellowship",
     number: validIndex ? index : undefined,
   };
+  if (!validIndex) return fallback;
+  try {
+    const row = await prisma.fellowshipContent.findUnique({
+      where: { index }, select: { title: true, contentMd: true },
+    });
+    return row ? {
+      ...fallback,
+      title: cleanText(row.title, 110) ?? fallback.title,
+      description: cleanText(row.contentMd, 190) ?? fallback.description,
+    } : fallback;
+  } catch {
+    return fallback;
+  }
 }

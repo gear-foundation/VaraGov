@@ -56,6 +56,9 @@ export function verifySimaMessage(body: unknown): VerifiedMessage | { error: str
   const payload = parsed as SimaPayload;
   if (!ACTIONS.has(payload.action)) return { error: "Invalid action." };
   if (payload.network !== "vara") return { error: "Wrong network." };
+  if (payload.governance !== undefined && payload.governance !== "token" && payload.governance !== "fellowship") {
+    return { error: "Invalid governance kind." };
+  }
   if (!Number.isSafeInteger(payload.refIndex) || payload.refIndex < 0) {
     return { error: "Invalid refIndex." };
   }

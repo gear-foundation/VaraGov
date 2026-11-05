@@ -16,6 +16,8 @@ import type { TrackInfo } from "@/lib/chain/tracks";
 import { CONVICTIONS } from "@/lib/chain/voting";
 import type { DirectVote } from "@/lib/chain/direct-votes";
 import { PHASE_LABEL } from "@/components/referenda";
+import type { ReferendumOutlook } from "@/lib/chain/referendum-outlook";
+import { VotingOutlook } from "@/components/VotingOutlook";
 
 export type VoteDto = DirectVote;
 
@@ -50,11 +52,8 @@ export function useHistory(index: number) {
   });
 }
 
-function clampPercent(value: number) {
-  return Math.min(100, Math.max(0, value * 100));
-}
-
 function detailedPercent(value: number, precision: number) {
+  if (value > 0 && value * 100 < Math.pow(10, -precision)) return `${(value * 100).toPrecision(2)}%`;
   return `${(value * 100).toFixed(precision)}%`;
 }
 
@@ -63,28 +62,35 @@ function ThresholdBar({
   threshold,
   label,
   precision = 1,
+  zoom = false,
+  met,
 }: {
   value: number;
   threshold: number | null;
   label: string;
   precision?: number;
+  zoom?: boolean;
+  met?: boolean | null;
 }) {
-  const width = clampPercent(value);
-  const marker = threshold === null ? null : clampPercent(threshold);
+  const scale = zoom ? Math.min(1, Math.max(value, threshold ?? 0, 0.0001) * 1.25) : 1;
+  const position = (fraction: number) => Math.min(100, Math.max(0, fraction / scale * 100));
+  const width = position(value);
+  const marker = threshold === null ? null : position(threshold);
+  const isMet = met ?? (threshold !== null && value >= threshold);
   const thresholdLabel =
     threshold === null ? null : detailedPercent(threshold, precision);
   const thresholdComparison =
     threshold !== null && threshold > 0
-      ? value >= threshold
+      ? isMet
         ? `Met · ${(value / threshold).toFixed(2)}×`
         : `${Math.round((value / threshold) * 100)}% of required`
       : null;
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-muted">
         <span>{label}</span>
         {thresholdLabel && (
-          <span className={value >= (threshold ?? 0) ? "text-aye" : "text-nay"}>
+          <span className={isMet ? "text-aye" : "text-warn"}>
             Required {thresholdLabel}
             {thresholdComparison && ` · ${thresholdComparison}`}
           </span>
@@ -104,6 +110,7 @@ function ThresholdBar({
           />
         )}
       </div>
+      {zoom && <p className="tnum mt-1 text-right text-[10px] text-muted">Scale 0–{detailedPercent(scale, precision)}</p>}
     </div>
   );
 }
@@ -115,7 +122,7 @@ export function TallyPanel({
   approvalThreshold = null,
   supportThreshold = null,
   live = false,
-  passing = null,
+  outlook,
   outcome,
   issuance,
   onVote,
@@ -126,33 +133,23 @@ export function TallyPanel({
   approvalThreshold?: number | null;
   supportThreshold?: number | null;
   live?: boolean;
-  passing?: boolean | null;
+  outlook?: ReferendumOutlook;
   outcome?: Phase;
   issuance?: BN | null;
   onVote?: () => void;
 }) {
   const nayShare = approval === null ? null : 1 - approval;
-  const verdict = live
-    ? passing === null
-      ? null
-      : passing
-        ? "Passing"
-        : "Failing"
-    : outcome
+  const verdict = !live && outcome
       ? PHASE_LABEL[outcome]
       : null;
-  const verdictTone = live
-    ? passing
-      ? "text-aye"
-      : "text-nay"
-    : outcome === "approved"
+  const verdictTone = outcome === "approved"
       ? "text-aye"
       : outcome === "rejected" || outcome === "killed"
         ? "text-nay"
         : "text-muted";
   return (
     <section className="panel tally-panel overflow-hidden">
-      <div className="flex items-center justify-between border-b border-line-strong bg-surface-2 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-strong bg-surface-2 px-4 py-3">
         <div>
           <h2 className="label-serif">{live ? "Live tally" : "Final tally"}</h2>
           <p className="mt-0.5 text-[11px] text-muted">Conviction-weighted voting power</p>
@@ -165,6 +162,7 @@ export function TallyPanel({
       </div>
 
       <div className="space-y-5 p-4">
+        {live && outlook && <VotingOutlook outlook={outlook} />}
         <div>
           <div className="mb-3 grid grid-cols-2 gap-4">
             <div>
@@ -179,10 +177,11 @@ export function TallyPanel({
             </div>
           </div>
           {approval !== null ? (
-            <ThresholdBar value={approval} threshold={approvalThreshold} label="Approval" />
+            <ThresholdBar value={approval} threshold={approvalThreshold} label="Approval" met={outlook?.approvalMet} />
           ) : (
             <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">No directional votes yet.</p>
           )}
+          <p className="mt-2 text-[11px] leading-relaxed text-muted">Approval is the Aye share of conviction-weighted Aye and Nay votes.</p>
         </div>
 
         <div className="border-t border-line-strong pt-4">
@@ -206,12 +205,15 @@ export function TallyPanel({
                 threshold={supportThreshold}
                 label="Active issuance support"
                 precision={2}
+                zoom
+                met={outlook?.supportMet}
               />
             </div>
           )}
           {issuance && (
             <p className="tnum mt-2 text-[11px] text-muted">Active issuance {formatVara(issuance)} VARA</p>
           )}
+          <p className="mt-2 text-[11px] leading-relaxed text-muted">Support counts Aye and Abstain capital without a conviction multiplier, as a share of active issuance.</p>
         </div>
 
         {onVote && (

@@ -26,8 +26,6 @@ import {
 } from "@/lib/chain/hooks";
 import {
   approvalFraction,
-  curveThreshold,
-  decidingProgress,
   supportFraction,
 } from "@/lib/chain/curves";
 import {
@@ -36,6 +34,7 @@ import {
   formatVara,
   percent,
 } from "@/lib/chain/format";
+import { referendumOutlook } from "@/lib/chain/referendum-outlook";
 import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
 import { CurveChart } from "@/components/CurveChart";
@@ -147,7 +146,7 @@ export default function ReferendumPage({
     refetch: refetchLiveVotes,
   } = useReferendumVotes(index, voteTrackId, liveVotesEnabled);
   const tracks = useTracks();
-  const issuance = useActiveIssuance();
+  const fallbackIssuance = useActiveIssuance();
   const refForCall =
     ref && !ref.proposalHash && history?.referendum?.proposalHash
       ? {
@@ -184,25 +183,16 @@ export default function ReferendumPage({
   const proposer = ref.proposer ?? history?.referendum?.proposer ?? null;
   const contentProposer = proposer ?? content?.proposer ?? null;
   const canEditContent = sameAccount(account?.address, contentProposer);
-  const track = tracks?.find((t) => t.id === trackId);
+  const track = ref.snapshot?.track ?? tracks?.find((t) => t.id === trackId);
+  const issuance = ref.snapshot?.activeIssuance;
   const isOngoing = ONGOING_PHASES.includes(ref.phase);
   const approval = ref.tally ? approvalFraction(ref.tally.ayes, ref.tally.nays) : null;
   const support =
     ref.tally && issuance ? supportFraction(ref.tally.support, issuance) : null;
-  const progress =
-    track && finalizedNumber
-      ? decidingProgress(finalizedNumber, ref.decidingSince, track.decisionPeriod)
-      : 0;
-  const approvalThreshold = track ? curveThreshold(track.minApproval, progress) : null;
-  const supportThreshold = track ? curveThreshold(track.minSupport, progress) : null;
-
-  const passingNow =
-    approval !== null &&
-    support !== null &&
-    approvalThreshold !== null &&
-    supportThreshold !== null &&
-    approval >= approvalThreshold &&
-    support >= supportThreshold;
+  const outlook = referendumOutlook(ref);
+  const progress = outlook.progress;
+  const approvalThreshold = outlook.approvalThreshold;
+  const supportThreshold = outlook.supportThreshold;
 
   return (
     <div className="anim-rise">
@@ -269,7 +259,7 @@ export default function ReferendumPage({
             approvalThreshold={approvalThreshold}
             supportThreshold={supportThreshold}
             live
-            passing={passingNow}
+            outlook={outlook}
             issuance={issuance}
             onVote={isOngoing ? () => setVoteOpen(true) : undefined}
           />
@@ -361,7 +351,7 @@ export default function ReferendumPage({
             votes={isOngoing ? liveVotes ?? [] : history?.votes ?? []}
             electorate={
               isOngoing
-                ? issuance
+                ? issuance ?? fallbackIssuance
                 : history?.referendum?.finalTally?.electorate ?? null
             }
             live={isOngoing}
@@ -385,7 +375,7 @@ export default function ReferendumPage({
               approvalThreshold={approvalThreshold}
               supportThreshold={supportThreshold}
               live
-              passing={passingNow}
+              outlook={outlook}
               issuance={issuance}
               onVote={isOngoing ? () => setVoteOpen(true) : undefined}
             />

@@ -68,3 +68,19 @@ test("metadata anchor skips an existing preimage", async () => {
   assert.deepEqual(result, { ok: true, preimage: "existing" });
   assert.deepEqual(sent, ["metadata"]);
 });
+
+test("Fellowship metadata anchoring selects the Fellowship pallet", async () => {
+  const calls: string[] = [];
+  const api = {
+    query: { preimage: { preimageFor: async () => ({ isSome: true }) } },
+    tx: {
+      referenda: { setMetadata: () => { throw new Error("Wrong pallet"); } },
+      fellowshipReferenda: { setMetadata: (index: number) => ({ name: `fellowship:${index}` }) },
+    },
+  };
+  const result = await anchorReferendumMetadata(api as never, 75, "0xhash", "0x0102",
+    (async (tx: { name: string }) => { calls.push(tx.name); return true; }) as never,
+    undefined, "fellowship");
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ["fellowship:75"]);
+});

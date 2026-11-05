@@ -8,7 +8,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const data = getFellowshipReferendumShareData(Number(id));
+  const data = await getFellowshipReferendumShareData(Number(id));
   const canonical = `/fellowship/referenda/${id}`;
 
   return {

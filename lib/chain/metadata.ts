@@ -1,5 +1,6 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
+import type { GovernanceKind } from "../sima";
 
 type SendTx = (tx: SubmittableExtrinsic<"promise">) => Promise<boolean>;
 type AnchorStage = "preimage" | "metadata";
@@ -22,6 +23,7 @@ export async function anchorReferendumMetadata(
   payloadHex: string,
   send: SendTx,
   onStage?: (stage: AnchorStage) => void,
+  kind: GovernanceKind = "token",
 ): Promise<MetadataAnchorResult> {
   const length = hexByteLength(payloadHex);
   onStage?.("preimage");
@@ -38,7 +40,8 @@ export async function anchorReferendumMetadata(
   }
 
   onStage?.("metadata");
-  if (!(await send(api.tx.referenda.setMetadata(refIndex, contentHash)))) {
+  const pallet = kind === "fellowship" ? "fellowshipReferenda" : "referenda";
+  if (!(await send(api.tx[pallet].setMetadata(refIndex, contentHash)))) {
     return { ok: false, stage: "metadata" };
   }
   return { ok: true, preimage };

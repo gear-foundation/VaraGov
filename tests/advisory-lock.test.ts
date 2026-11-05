@@ -37,8 +37,15 @@ test("referendum content lock uses the numeric referendum index", async () => {
 
   assert.deepEqual(calls, [
     {
-      sql: "SELECT pg_advisory_xact_lock(?)",
+      sql: "SELECT pg_advisory_xact_lock(?::bigint)",
       values: [77],
     },
   ]);
+});
+
+test("equal referendum numbers in different governance sections use distinct locks", async () => {
+  const { tx, calls } = transactionRecorder();
+  await lockReferendumContent(tx, 75, "token");
+  await lockReferendumContent(tx, 75, "fellowship");
+  assert.deepEqual(calls.map((call) => call.values), [[75], [-76]]);
 });

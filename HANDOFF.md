@@ -34,6 +34,29 @@ Acceptance criteria live in SPEC.md §8. What was verified live against Vara mai
 
 Self-checks: `npm run check` (curve math + the SIMA API; the latter needs a running dev server and Postgres).
 
+## Governance feedback changes (2026-11-05)
+
+- Token-holder lists and details now explain current approval/support thresholds,
+  show a conditional confirmation/approval forecast, and distinguish preparation
+  and missing requirements from failing thresholds. Ongoing tally, issuance and
+  track parameters are read together at one finalized block.
+- The main list shows local comment totals, including replies, with a 30-second
+  refresh and cache invalidation after posting.
+- Fellowship has wallet-signed titles/descriptions, proposer-only editing even
+  after completion (archive lookup), and optional metadata anchoring while ongoing.
+  Content is isolated in `FellowshipContent`; SIMA payloads include `governance`.
+  Legacy payloads without it belong exclusively to token-holder governance.
+- Apply `npx prisma migrate deploy` and regenerate the Prisma client when updating
+  an existing installation. New migration: `20261105090000_fellowship_content`.
+- Verification: 61 tests, lint, TypeScript, curve/SIMA self-checks, isolated
+  PostgreSQL migration and concurrency/count checks, and production build via
+  `npm run build -- --webpack` passed. Live RPC reads verified the token-holder
+  snapshot and archived Fellowship #75 proposer. Chrome QA covered desktop/mobile,
+  light/dark themes and editor/cache/metadata updates with a simulated extension.
+  Turbopack hit an environment restriction when opening its internal worker port.
+- The author must supply and sign the actual text of Fellowship #75. No author
+  wallet or mainnet write was used during implementation verification.
+
 ## Running from scratch (clean clone)
 
 Requirements: Node 22+, Docker (for Postgres). Ports: 3000 (web), 5432 (pg).

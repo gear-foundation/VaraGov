@@ -5,6 +5,7 @@ import { getServerApi } from "@/lib/server/chain";
 import { verifySimaMessage } from "@/lib/server/verify";
 import { lockCommentAuthor } from "@/lib/server/advisory-lock";
 import { parseReferendumInfo } from "@/lib/chain/referenda";
+import { payloadGovernance } from "@/lib/sima";
 
 const RATE_LIMIT_PER_HOUR = 10;
 
@@ -48,7 +49,7 @@ export async function POST(
   const { payload, payloadJson, address, signature } = verified;
   if (
     (payload.action !== "comment" && payload.action !== "edit_comment") ||
-    payload.refIndex !== idx
+    payload.refIndex !== idx || payloadGovernance(payload) !== "token"
   ) {
     return NextResponse.json({ error: "Wrong action or index." }, { status: 400 });
   }

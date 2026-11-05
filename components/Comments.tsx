@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWallet } from "@/lib/chain/wallet";
-import { useComments, signAndPost, type CommentDto } from "@/lib/content";
+import { useComments, signAndPost, contentKeys, type CommentDto } from "@/lib/content";
 import { shortAddress } from "@/lib/chain/format";
 import { Markdown } from "./Markdown";
 import { ErrorNotice } from "./ErrorNotice";
@@ -98,6 +98,7 @@ export function Comments({ refIndex }: { refIndex: number }) {
     setReplyTo(null);
     setEditing(null);
     await queryClient.invalidateQueries({ queryKey: ["comments", refIndex] });
+    await queryClient.invalidateQueries({ queryKey: contentKeys.titles("token") });
   }
 
   return (

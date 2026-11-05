@@ -5,12 +5,12 @@ import { BN } from "@polkadot/util";
 import { useApi } from "./ApiProvider";
 import {
   fetchAllFellowshipReferenda,
-  fetchAllReferenda,
   decodeProposal,
   parseReferendumInfo,
   type Referendum,
 } from "./referenda";
 import { getFellowshipTracks, getTracks, type TrackInfo } from "./tracks";
+import { tokenSnapshot } from "./token-snapshot";
 
 export function useTracksQuery() {
   const { api } = useApi();
@@ -26,7 +26,7 @@ export function useReferendaList() {
   const { api } = useApi();
   return useQuery({
     queryKey: ["referenda"],
-    queryFn: () => fetchAllReferenda(api!),
+    queryFn: () => tokenSnapshot(api!),
     enabled: !!api,
     refetchInterval: 12_000,
   });
@@ -58,10 +58,9 @@ export function useReferendum(index: number) {
   return useQuery({
     queryKey: ["referendum", index],
     queryFn: async () => {
-      const info = await api!.query.referenda.referendumInfoFor(index);
-      return parseReferendumInfo(index, info);
+      return (await tokenSnapshot(api!, index))[0] ?? null;
     },
-    enabled: !!api && Number.isInteger(index),
+    enabled: !!api && Number.isSafeInteger(index) && index >= 0,
     refetchInterval: 6_000,
   });
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { MessageSquare } from "lucide-react";
+import { VotingOutlook } from "./VotingOutlook";
+import type { ReferendumOutlook } from "@/lib/chain/referendum-outlook";
 import type { BN } from "@polkadot/util";
 import type { Phase, Referendum } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
@@ -116,6 +119,9 @@ export function ReferendumRow({
   hrefBase = "/referenda",
   fallbackLabel,
   stagger = 0,
+  commentCount,
+  showComments = false,
+  outlook,
 }: {
   r: Referendum;
   track: TrackInfo | undefined;
@@ -123,6 +129,9 @@ export function ReferendumRow({
   hrefBase?: string;
   fallbackLabel?: string;
   stagger?: number;
+  commentCount?: number;
+  showComments?: boolean;
+  outlook?: ReferendumOutlook;
 }) {
   const heading =
     title ??
@@ -152,6 +161,15 @@ export function ReferendumRow({
             </span>
           )}
         </div>
+        {showComments && (
+          <span className="tnum mt-2 inline-flex items-center gap-1.5 text-xs text-muted"
+            aria-label={commentCount === undefined ? "Comment count unavailable" : `${commentCount} comments`}
+            title={commentCount === undefined ? "Comment count unavailable" : `${commentCount} comments, including replies`}>
+            <MessageSquare size={13} aria-hidden="true" />
+            {commentCount ?? "—"}
+          </span>
+        )}
+        {outlook && <VotingOutlook outlook={outlook} compact />}
       </div>
       <div className="hidden min-w-0 pt-1 sm:block">
         {r.tally ? (

@@ -82,3 +82,12 @@ test("malformed addresses and signatures produce a client error", () => {
   assert.ok("error" in result);
   assert.match(result.error, /address|signature/i);
 });
+
+test("unknown governance scopes are rejected before signature verification", () => {
+  const result = verifySimaMessage(unsigned({
+    action: "provide_context", network: "vara", governance: "other", refIndex: 75,
+    title: "Test", content: "Context", timestamp: Date.now(),
+  }));
+  assert.ok("error" in result);
+  assert.match(result.error, /governance/i);
+});

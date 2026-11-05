@@ -3,32 +3,44 @@
 import { useQuery } from "@tanstack/react-query";
 import { stringToHex } from "@polkadot/util";
 import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
-import { buildPayloadJson, type SimaPayload } from "./sima";
+import { buildPayloadJson, type GovernanceKind, type SimaPayload } from "./sima";
 import { humanizeApiError, humanizeHttpError, humanizeTxError } from "./chain/errors";
 
 export type RefMeta = {
   title: string | null;
   trackId: number | null;
   blob: string; // lowercase title + description, for the quick filter
+  commentCount?: number;
 };
 
-export function useRefMeta(): Map<number, RefMeta> | undefined {
-  const { data } = useQuery({
-    queryKey: ["titles"],
+export const contentKeys = {
+  titles: (kind: GovernanceKind) => ["titles", kind] as const,
+  detail: (kind: GovernanceKind, index: number) => ["content", kind, index] as const,
+};
+
+export function contentEndpoint(kind: GovernanceKind) {
+  return kind === "fellowship" ? "/api/fellowship/content" : "/api/content";
+}
+
+export function useRefMeta(kind: GovernanceKind = "token"): Map<number, RefMeta> | undefined {
+  const { data, isError } = useQuery({
+    queryKey: contentKeys.titles(kind),
     queryFn: async () => {
-      const res = await fetch("/api/content");
+      const res = await fetch(contentEndpoint(kind));
       if (!res.ok) throw new Error("Could not load referendum titles.");
       const json = await res.json();
       return new Map<number, RefMeta>(
         (json.titles as ({ index: number } & RefMeta)[]).map((t) => [
           t.index,
-          { title: t.title, trackId: t.trackId, blob: t.blob ?? "" },
+          { title: t.title, trackId: t.trackId, blob: t.blob ?? "", commentCount: t.commentCount },
         ]),
       );
     },
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: "always",
   });
-  return data;
+  return isError ? undefined : data;
 }
 
 export type RefContent = {
@@ -37,18 +49,20 @@ export type RefContent = {
   contentMd: string | null;
   proposer: string | null;
   metadataHash: string | null;
+  trackId?: number | null;
 } | null;
 
-export function useContent(index: number) {
+export function useContent(index: number, kind: GovernanceKind = "token") {
   return useQuery({
-    queryKey: ["content", index],
+    queryKey: contentKeys.detail(kind, index),
     queryFn: async (): Promise<RefContent> => {
-      const res = await fetch(`/api/content/${index}`);
+      const res = await fetch(`${contentEndpoint(kind)}/${index}`);
       if (!res.ok) throw new Error("Could not load referendum content.");
       const json = await res.json();
       return json.content ?? null;
     },
     staleTime: 15_000,
+    enabled: Number.isSafeInteger(index) && index >= 0,
   });
 }
 

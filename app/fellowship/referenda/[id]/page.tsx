@@ -1,8 +1,13 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, BadgeCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, FilePenLine } from "lucide-react";
+import { EditContent } from "@/components/EditContent";
+import { Markdown } from "@/components/Markdown";
+import { useContent } from "@/lib/content";
+import { useWallet } from "@/lib/chain/wallet";
+import { sameAccount } from "@/lib/chain/address";
 import { CallViewer } from "@/components/CallViewer";
 import { StatusPill, TallyBar, TrackBadge } from "@/components/referenda";
 import {
@@ -33,6 +38,9 @@ export default function FellowshipReferendumPage({
 }) {
   const { id } = use(params);
   const index = Number(id);
+  const [editOpen, setEditOpen] = useState(false);
+  const { account } = useWallet();
+  const { data: content, error: contentError, refetch: refetchContent } = useContent(index, "fellowship");
   const {
     data: referendum,
     isPending,
@@ -40,10 +48,11 @@ export default function FellowshipReferendumPage({
     refetch,
   } = useFellowshipReferendum(index);
   const tracks = useFellowshipTracks();
-  const track = tracks?.find((candidate) => candidate.id === referendum?.trackId);
+  const track = tracks?.find((candidate) => candidate.id === (referendum?.trackId ?? content?.trackId));
   const { data: call } = useDecodedCall(referendum);
   const { data: whitelistLinks } = useFellowshipWhitelistLinks(index);
-  const proposer = referendum?.proposer ?? whitelistLinks?.proposer ?? null;
+  const proposer = referendum?.proposer ?? content?.proposer ?? whitelistLinks?.proposer ?? null;
+  const canEdit = sameAccount(account?.address, proposer);
 
   if (!Number.isInteger(index) || index < 0) {
     return <p className="text-muted">Invalid Fellowship referendum index.</p>;
@@ -78,12 +87,34 @@ export default function FellowshipReferendumPage({
               <StatusPill phase={referendum.phase} />
             </div>
             <h1 className="display mt-3 text-3xl leading-tight font-semibold text-balance sm:text-4xl">
-              {track ? `[${track.displayName}] ` : ""}Fellowship referendum #{index}
+              {content?.title ?? `${track ? `[${track.displayName}] ` : ""}Fellowship referendum #${index}`}
             </h1>
             <div className="mt-3 flex items-center gap-2 text-sm text-muted">
               <BadgeCheck size={16} className="text-accent-ink" aria-hidden="true" />
               Ranked-collective governance
             </div>
+
+            <section className="panel mt-6 p-4">
+              {contentError ? (
+                <ErrorNotice message={humanizeReadError("the title and description")}
+                  onRetry={() => void refetchContent()} compact />
+              ) : content?.contentMd ? (
+                <Markdown dropCap>{content.contentMd}</Markdown>
+              ) : (
+                <p className="text-sm text-muted">No description has been provided yet.</p>
+              )}
+              {!contentError && canEdit ? (
+                <button onClick={() => setEditOpen(true)} className="btn btn-soft mt-4">
+                  <FilePenLine size={15} aria-hidden="true" />
+                  {content?.title ? "Edit title & description" : "Add title & description"}
+                </button>
+              ) : !contentError && !content?.title ? (
+                <p className="mt-3 text-xs text-muted">
+                  {account ? "Only the on-chain proposer can add the title and description."
+                    : "Connect the proposer wallet to add the title and description."}
+                </p>
+              ) : null}
+            </section>
 
             <section className="panel mt-6 p-4">
               <h2 className="label-serif mb-3">Proposal call</h2>
@@ -101,6 +132,8 @@ export default function FellowshipReferendumPage({
           </div>
 
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
+            {editOpen && <EditContent kind="fellowship" referendum={referendum}
+              existing={content ?? null} onClose={() => setEditOpen(false)} />}
             <FellowshipVotePanel referendum={referendum} />
 
             <section className="panel p-4">

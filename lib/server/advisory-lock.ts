@@ -1,4 +1,5 @@
 import type { Prisma } from "../generated/prisma/client";
+import type { GovernanceKind } from "../sima";
 
 export async function lockCommentAuthor(
   tx: Prisma.TransactionClient,
@@ -10,6 +11,9 @@ export async function lockCommentAuthor(
 export async function lockReferendumContent(
   tx: Prisma.TransactionClient,
   refIndex: number,
+  kind: GovernanceKind = "token",
 ): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${refIndex})`;
+  // Preserve the token lock key for compatibility during rolling deployments.
+  const key = kind === "token" ? refIndex : -refIndex - 1;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key}::bigint)`;
 }

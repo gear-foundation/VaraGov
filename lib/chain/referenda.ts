@@ -1,5 +1,6 @@
 import type { ApiPromise } from "@polkadot/api";
 import { BN } from "@polkadot/util";
+import type { TrackInfo } from "./tracks";
 import {
   decodeCallTree,
   type CallRegistry,
@@ -29,6 +30,7 @@ export const ONGOING_PHASES: Phase[] = [
 export type Tally = { ayes: BN; nays: BN; support: BN };
 
 export type Referendum = {
+  snapshot?: { atBlock: number; activeIssuance: BN; track: TrackInfo | undefined };
   index: number;
   phase: Phase;
   trackId: number | null; // null for terminal variants (track is dropped from state)

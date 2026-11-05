@@ -8,6 +8,6 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = getFellowshipReferendumShareData(Number(id));
+  const data = await getFellowshipReferendumShareData(Number(id));
   return new ImageResponse(<OpenGraphCard {...data} />, size);
 }

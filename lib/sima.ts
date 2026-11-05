@@ -4,10 +4,16 @@
 // canonicalization is never an issue: verify the string, then parse it.
 
 export type SimaAction = "provide_context" | "comment" | "edit_comment";
+export type GovernanceKind = "token" | "fellowship";
+
+export function payloadGovernance(payload: { governance?: GovernanceKind }): GovernanceKind {
+  return payload.governance ?? "token";
+}
 
 export type SimaPayload = {
   action: SimaAction;
   network: "vara";
+  governance?: GovernanceKind; // absent in legacy token-holder messages
   refIndex: number;
   title?: string;
   content?: string;

@@ -10,6 +10,7 @@ import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
 import { humanizeReadError } from "@/lib/chain/errors";
 import { ErrorNotice } from "@/components/ErrorNotice";
+import { referendumOutlook } from "@/lib/chain/referendum-outlook";
 
 const TABS = ["All", "Ongoing", "Approved", "Rejected"] as const;
 type Tab = (typeof TABS)[number];
@@ -213,6 +214,9 @@ export function ReferendaDirectory({
                 r={referendum}
                 track={tracks?.find((track) => track.id === trackId)}
                 title={meta?.get(referendum.index)?.title}
+                showComments={kind === "token"}
+                commentCount={meta ? meta.get(referendum.index)?.commentCount ?? 0 : undefined}
+                outlook={kind === "token" ? referendumOutlook(referendum) : undefined}
                 hrefBase={copy.hrefBase}
                 fallbackLabel={copy.fallbackLabel}
                 stagger={Math.min(index, 14) * 25}
