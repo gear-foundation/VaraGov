@@ -33,6 +33,8 @@ test("100% approval with 0.10% support is below 0.75%, with a future conditional
   assert.equal(outlook.supportMet, false);
   assert.equal(outlook.confirmationBlock, 1000);
   assert.equal(outlook.approvalBlock, 1100);
+  assert.equal(outlook.forecastEndBlock, 1100);
+  assert.equal(outlook.forecastOutcome, "approved");
 });
 
 test("forecast waits until both approval and support meet their thresholds", () => {
@@ -50,6 +52,8 @@ test("no votes or unreachable approval cannot produce a successful forecast", ()
     const outlook = referendumOutlook(ref({ tally: { ayes: new BN(ayes), nays: new BN(nays), support: new BN(0) } }));
     assert.equal(outlook.state, "below");
     assert.equal(outlook.approvalBlock, null);
+    assert.equal(outlook.forecastEndBlock, 1100);
+    assert.equal(outlook.forecastOutcome, "rejected");
   }
 });
 
@@ -59,6 +63,10 @@ test("loading, preparation, a zero electorate and terminal states are distinct",
   assert.equal(referendumOutlook(ref({ phase: "queueing", decidingSince: null })).state, "waiting");
   assert.equal(referendumOutlook(ref(), track, new BN(0), 350).state, "unavailable");
   assert.equal(referendumOutlook(ref({ phase: "approved", tally: null })).state, "finished");
+  for (const referendum of [ref({ snapshot: undefined }), ref({ phase: "preparing", decidingSince: null }), ref({ phase: "approved", tally: null })]) {
+    assert.equal(referendumOutlook(referendum).forecastEndBlock, null);
+    assert.equal(referendumOutlook(referendum).forecastOutcome, null);
+  }
 });
 
 test("uses the chain confirmation deadline, even beyond the decision period", () => {
@@ -66,6 +74,8 @@ test("uses the chain confirmation deadline, even beyond the decision period", ()
   const outlook = referendumOutlook(referendum, track, new BN(10_000_000_000), 1090);
   assert.equal(outlook.state, "confirming");
   assert.equal(outlook.approvalBlock, 1180);
+  assert.equal(outlook.forecastEndBlock, 1180);
+  assert.equal(outlook.forecastOutcome, "approved");
   const interrupted = referendumOutlook({ ...referendum, tally: { ayes: new BN(1), nays: new BN(100), support: new BN(0) } });
   assert.equal(interrupted.state, "below");
   assert.equal(interrupted.approvalBlock, null);

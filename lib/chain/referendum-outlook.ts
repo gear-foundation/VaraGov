@@ -13,8 +13,11 @@ export type ReferendumOutlook = {
   supportMet: boolean | null;
   progress: number;
   atBlock: number | null;
+  decidingSince: number | null;
   confirmationBlock: number | null;
   approvalBlock: number | null;
+  forecastEndBlock: number | null;
+  forecastOutcome: "approved" | "rejected" | null;
 };
 
 // Every input for an ongoing referendum belongs to the same finalized snapshot.
@@ -31,7 +34,9 @@ export function referendumOutlook(
     state: "loading", approval: null, support: null,
     approvalThreshold: null, supportThreshold: null,
     approvalMet: null, supportMet: null, progress: 0,
-    atBlock: atBlock ?? null, confirmationBlock: null, approvalBlock: null,
+    atBlock: atBlock ?? null, decidingSince: referendum.decidingSince,
+    confirmationBlock: null, approvalBlock: null,
+    forecastEndBlock: null, forecastOutcome: null,
   };
   if (!ONGOING_PHASES.includes(referendum.phase)) return { ...result, state: "finished" };
   if (referendum.decidingSince === null) return { ...result, state: "waiting" };
@@ -76,5 +81,7 @@ export function referendumOutlook(
     result.confirmationBlock = since + low;
     result.approvalBlock = since + low + track.confirmPeriod;
   }
+  result.forecastEndBlock = result.approvalBlock ?? since + track.decisionPeriod;
+  result.forecastOutcome = result.approvalBlock !== null ? "approved" : "rejected";
   return result;
 }

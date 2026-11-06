@@ -451,9 +451,9 @@ export default function ReferendumPage({
             </h2>
             <CurveChart
               track={track}
-              progress={progress}
-              approval={approval}
-              support={support}
+              outlook={outlook}
+              approval={outlook.approval ?? approval}
+              support={outlook.support ?? support}
             />
           </section>
         )}
