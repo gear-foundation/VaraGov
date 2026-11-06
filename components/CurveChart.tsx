@@ -28,7 +28,7 @@ export function CurveChart({
   approval: number | null;
   support: number | null;
 }) {
-  const [view, setView] = useState<CurveView>("auto");
+  const [view, setView] = useState<CurveView>("full");
   const position = (block: number | null) =>
     block !== null && outlook.decidingSince !== null && track.decisionPeriod > 0
       ? Math.max(0, block - outlook.decidingSince)
@@ -66,7 +66,7 @@ export function CurveChart({
     <div className="w-full text-xs">
       {timeWindow.canFocus && (
         <div role="group" aria-label="Chart time window" className="mb-3 flex w-fit rounded-[3px] border border-line bg-surface-2 p-0.5">
-          {(["focus", "full"] as const).map((mode) => {
+          {(["full", "focus"] as const).map((mode) => {
             const active = mode === "focus" ? timeWindow.focused : !timeWindow.focused;
             return (
               <button key={mode} type="button" aria-pressed={active}
