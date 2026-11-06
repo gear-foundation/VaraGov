@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { curveThreshold } from "@/lib/chain/curves";
+import { blocksToHoursMinutes } from "@/lib/chain/format";
 import type { TrackInfo } from "@/lib/chain/tracks";
 
 export function CurveChart({
@@ -32,15 +33,18 @@ export function CurveChart({
       support: curveThreshold(track.minSupport, x) * 100,
     };
   });
+  const elapsedTime = (position: number) => blocksToHoursMinutes(track.decisionPeriod * position / 100);
 
   return (
-    <div className="h-56 w-full text-xs">
-      <ResponsiveContainer>
+    <div className="w-full text-xs">
+      <ResponsiveContainer height={224}>
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
           <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
           <XAxis
             dataKey="x"
-            tickFormatter={(v) => `${v}%`}
+            type="number"
+            domain={[0, 100]}
+            tickFormatter={elapsedTime}
             stroke="var(--muted)"
             tickLine={false}
             ticks={[0, 25, 50, 75, 100]}
@@ -53,7 +57,7 @@ export function CurveChart({
           />
           <Tooltip
             formatter={(value) => `${Number(value).toFixed(1)}%`}
-            labelFormatter={(l) => `${l}% of decision period`}
+            labelFormatter={(label) => `${elapsedTime(Number(label))} since decision started`}
             contentStyle={{
               background: "var(--surface)",
               border: "1px solid var(--line)",
@@ -77,7 +81,7 @@ export function CurveChart({
           />
           {progress > 0 && (
             <ReferenceLine
-              x={Math.round(progress * 100)}
+              x={progress * 100}
               stroke="var(--muted)"
               strokeDasharray="4 4"
               label={{ value: "now", fill: "var(--muted)", fontSize: 11 }}
@@ -101,6 +105,7 @@ export function CurveChart({
           )}
         </LineChart>
       </ResponsiveContainer>
+      <p className="mt-1 text-center text-[11px] text-muted">Time since decision started</p>
     </div>
   );
 }
