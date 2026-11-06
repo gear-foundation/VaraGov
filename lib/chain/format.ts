@@ -33,10 +33,12 @@ export function blocksToDuration(blocks: number): string {
   return `${Math.round(h / 24)} days`;
 }
 
-// Elapsed time keeps minutes and cumulative hours, including periods over a day.
-export function blocksToHoursMinutes(blocks: number): string {
+// Elapsed time keeps minute precision and splits long periods into days and hours.
+export function blocksToElapsedTime(blocks: number): string {
   const minutes = Math.floor(Math.max(0, blocks) * BLOCK_TIME_MS / 60_000);
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+  const days = Math.floor(minutes / (24 * 60));
+  const hours = Math.floor(minutes / 60) % 24;
+  return `${days > 0 ? `${days}d ` : ""}${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
 // Estimated wall-clock date for a future/past block, given the current block.

@@ -31,7 +31,7 @@ import {
 import {
   blockToDate,
   blocksToDuration,
-  blocksToHoursMinutes,
+  blocksToElapsedTime,
   formatVara,
 } from "@/lib/chain/format";
 import { referendumOutlook } from "@/lib/chain/referendum-outlook";
@@ -404,7 +404,7 @@ export default function ReferendumPage({
             </Row>
           )}
           {ref.phase === "deciding" && track && (
-            <Row label="Decision elapsed">{blocksToHoursMinutes(progress * track.decisionPeriod)}</Row>
+            <Row label="Decision elapsed">{blocksToElapsedTime(progress * track.decisionPeriod)}</Row>
           )}
           {ref.confirmingUntil !== null && finalizedNumber !== null && (
             <Row label="Confirm ends">

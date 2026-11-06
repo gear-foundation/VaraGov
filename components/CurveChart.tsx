@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { curveThreshold } from "@/lib/chain/curves";
-import { blocksToHoursMinutes } from "@/lib/chain/format";
+import { blocksToElapsedTime } from "@/lib/chain/format";
 import type { TrackInfo } from "@/lib/chain/tracks";
 
 export function CurveChart({
@@ -33,7 +33,7 @@ export function CurveChart({
       support: curveThreshold(track.minSupport, x) * 100,
     };
   });
-  const elapsedTime = (position: number) => blocksToHoursMinutes(track.decisionPeriod * position / 100);
+  const elapsedTime = (position: number) => blocksToElapsedTime(track.decisionPeriod * position / 100);
 
   return (
     <div className="w-full text-xs">
