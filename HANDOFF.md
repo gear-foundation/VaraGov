@@ -108,7 +108,7 @@ lib/server/                 server layer (relative imports — runs under tsx):
   chain.ts                  server-side ApiPromise singleton
   verify.ts                 SIMA signature verification (u8aWrapBytes!)
   indexer.ts                logic shared by the worker and the backfill
-worker/worker.mts           listener process (tsx), cursor in WorkerCursor
+worker/worker.mts           listener process (tsx; the image runs the esbuild bundle dist/worker.mjs), cursor in WorkerCursor
 scripts/backfill.mts        one-time history import from the archive node
 scripts/check-*.{ts,mts}    self-checks
 prisma/schema.prisma        Referendum, Comment, Vote, TallySnapshot, WorkerCursor
@@ -124,7 +124,7 @@ off-chain content is signed messages only; no third-party SaaS/indexers at runti
 
 ## Known pitfalls (stepped on — don't repeat)
 
-1. **Prisma is pinned to 7.10.0.** `prisma@latest` = 8.0.0-rc with a completely
+1. **Prisma is pinned to 7.10.1.** `prisma@latest` = 8.0.0-rc with a completely
    new CLI (`migrate` → `migration`, etc.). Do not upgrade casually. In Prisma 7
    the DB URL lives in `prisma.config.ts` (not the schema), the client goes
    through `@prisma/adapter-pg`, and the `prisma-client` generator emits into
