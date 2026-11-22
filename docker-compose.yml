@@ -17,7 +17,7 @@ services:
     build: .
     profiles: ["prod"]
     restart: unless-stopped
-    command: ["npm", "run", "worker"]
+    command: ["dist/worker.mjs"]
     environment:
       DATABASE_URL: postgresql://varagov:${VARAGOV_DB_PASSWORD:-varagov}@postgres:5432/varagov
     depends_on:
@@ -29,7 +29,7 @@ services:
   migrate:
     build: .
     profiles: ["prod"]
-    command: ["npx", "prisma", "migrate", "deploy"]
+    command: ["node_modules/prisma/build/index.js", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://varagov:${VARAGOV_DB_PASSWORD:-varagov}@postgres:5432/varagov
     depends_on:

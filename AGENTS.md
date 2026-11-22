@@ -19,6 +19,7 @@ acceptance criteria per phase). Do not re-derive decisions settled there.
 
 - `npm run dev` — web on :3000 (needs `docker compose up -d postgres` + `.env` from `.env.example` + `npx prisma migrate dev` once)
 - `npm run worker` — finalized-block listener (separate process, cursor in DB)
+- `npm run build:worker` — bundles the worker into `dist/worker.mjs`, which the image runs as `node dist/worker.mjs`
 - `npm run backfill` — one-time history import (idempotent, already ran)
 - `npm run check` — self-checks: curve math (standalone) + SIMA API (needs running dev server)
 - `npm run build` — production build. NEVER run while `npm run dev` is up (shared `.next/`, the dev server hangs; `pkill -f "next dev"` first)
@@ -26,7 +27,7 @@ acceptance criteria per phase). Do not re-derive decisions settled there.
 
 ## Hard rules
 
-- Prisma is PINNED to 7.10.0 — `prisma@latest` is a 8.0.0-rc with an incompatible CLI. DB url lives in `prisma.config.ts`, client via `@prisma/adapter-pg`, generated into `lib/generated/prisma/`.
+- Prisma is PINNED to 7.10.1 — `prisma@latest` is a 8.0.0-rc with an incompatible CLI. DB url lives in `prisma.config.ts`, client via `@prisma/adapter-pg`, generated into `lib/generated/prisma/`.
 - Live data for ongoing referenda comes from chain RPC only, never from the DB. The DB is for history (final tallies exist ONLY in terminal events), off-chain content, and comments.
 - `lib/server/*` must keep relative imports (no `@/` alias) — the worker and scripts run under tsx. Standalone tsx scripts with top-level await use the `.mts` extension.
 - Server-side SIMA verification must keep the `u8aWrapBytes` path (extensions wrap signed bytes in `<Bytes>…</Bytes>`).
