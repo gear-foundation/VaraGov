@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReferendumOutlook } from "@/lib/chain/referendum-outlook";
-import { blocksToDuration } from "@/lib/chain/format";
+import { dateLabel, estimatedDate, type ChainClock } from "@/lib/chain/chain-clock";
 
 const LABELS: Record<ReferendumOutlook["state"], string> = {
   waiting: "Decision not started",
@@ -13,16 +13,20 @@ const LABELS: Record<ReferendumOutlook["state"], string> = {
   finished: "Voting complete",
 };
 
-export function VotingOutlook({ outlook, compact = false }: {
+export function VotingOutlook({ outlook, compact = false, clock }: {
   outlook: ReferendumOutlook;
   compact?: boolean;
+  clock?: ChainClock;
 }) {
   if (outlook.state === "finished") return null;
   const tone = outlook.state === "passing" || outlook.state === "confirming"
     ? "text-aye" : outlook.state === "below" ? "text-warn" : "text-muted";
   const missing = [outlook.approvalMet === false && "approval", outlook.supportMet === false && "support"]
     .filter(Boolean).join(" and ");
-  const remaining = (block: number) => blocksToDuration(Math.max(0, block - (outlook.atBlock ?? block)));
+  const remaining = (block: number) => {
+    const date = estimatedDate(clock, block);
+    return date ? dateLabel(date) : `block #${block.toLocaleString()}`;
+  };
   return (
     <div className={compact ? "mt-2 text-xs" : "rounded-[3px] border border-line bg-surface-2 p-3 text-xs"}>
       <p className={`font-semibold ${tone}`}>{LABELS[outlook.state]}</p>
@@ -38,14 +42,14 @@ export function VotingOutlook({ outlook, compact = false }: {
       {outlook.approvalBlock !== null && (
         <p className="tnum mt-1 leading-relaxed text-muted">
           {outlook.state === "confirming"
-            ? `Confirmation ends in ~${remaining(outlook.approvalBlock)}`
+            ? `Confirmation ends ~${remaining(outlook.approvalBlock)}`
             : compact
-              ? `May be approved in ~${remaining(outlook.approvalBlock)}`
-              : `Estimated approval in ~${remaining(outlook.approvalBlock)}`}
+              ? `May be approved ~${remaining(outlook.approvalBlock)}`
+              : `Estimated approval ~${remaining(outlook.approvalBlock)}`}
         </p>
       )}
       {!compact && outlook.state === "below" && outlook.confirmationBlock !== null && (
-        <p className="tnum mt-1 leading-relaxed text-muted">Both thresholds may be met in ~{remaining(outlook.confirmationBlock)} as requirements decrease.</p>
+        <p className="tnum mt-1 leading-relaxed text-muted">Both thresholds may be met ~{remaining(outlook.confirmationBlock)} as requirements decrease.</p>
       )}
       {outlook.state === "below" && outlook.approvalBlock === null && (
         <p className="mt-1 leading-relaxed text-muted">More votes are needed to meet the thresholds.</p>

@@ -185,3 +185,24 @@ The architecture was selected by a /council protocol run (3 generators,
 the final report and all verified facts are in SPEC.md §0. A rendered version
 of the spec (in Russian, produced for the original team review):
 https://claude.ai/code/artifact/522aa665-a022-4146-a4ce-2479155af8ba
+
+## Community treasury
+
+Run `npx prisma migrate deploy` and regenerate the client before restarting the
+web and worker. The worker indexes finalized treasury and execution events from
+its existing cursor. Use `npm run backfill:treasury -- <first-block> <last-block>`
+to replay a finalized archive interval without moving the normal worker cursor.
+For referendum attribution, historical referendum rows must already be available
+to the worker. The treasury page reports its indexed coverage.
+
+Live obligations, funding and nomination-pool membership are read from one
+finalized block. The bundled per-origin caps apply to Vara v2.1.1
+(`specVersion 20101`). For later releases, set the reviewed caps and matching
+version in `VARA_TREASURY_LIMITS`. The team can publish its confirmed multisig
+and infrastructure estimate through the variables in `.env.example`. Set a
+CoinGecko Demo key if the public quote endpoint is rate limited.
+
+VaraGov anchors its own signed content on chain. The author link on the
+referendum page opens Subsquare for separate context publication. Test the
+wallet payout flow on a copy of the network with a funded and approved spend
+before using it in the pilot.

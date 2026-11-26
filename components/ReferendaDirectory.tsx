@@ -10,6 +10,8 @@ import { ONGOING_PHASES, type Referendum } from "@/lib/chain/referenda";
 import type { TrackInfo } from "@/lib/chain/tracks";
 import { humanizeReadError } from "@/lib/chain/errors";
 import { ErrorNotice } from "@/components/ErrorNotice";
+import { QuoteSource, type Quote } from "./TreasuryValues";
+import type { ChainClock } from "@/lib/chain/chain-clock";
 import { referendumOutlook } from "@/lib/chain/referendum-outlook";
 
 const TABS = ["All", "Ongoing", "Approved", "Rejected"] as const;
@@ -54,6 +56,8 @@ export function ReferendaDirectory({
   isPending,
   error,
   onRetry,
+  quote,
+  clock,
 }: {
   kind: DirectoryKind;
   referenda: Referendum[] | undefined;
@@ -62,6 +66,8 @@ export function ReferendaDirectory({
   isPending: boolean;
   error: Error | null;
   onRetry: () => void;
+  quote?: Quote;
+  clock?: ChainClock;
 }) {
   const copy = COPY[kind];
   const [tab, setTab] = useState<Tab>("All");
@@ -183,6 +189,7 @@ export function ReferendaDirectory({
         </select>
       </div>
 
+      {kind === "token" && <div className="mb-3"><QuoteSource quote={quote} /></div>}
       {error ? (
         <ErrorNotice
           message={humanizeReadError(
@@ -216,6 +223,8 @@ export function ReferendaDirectory({
                 title={meta?.get(referendum.index)?.title}
                 showComments={kind === "token"}
                 commentCount={meta ? meta.get(referendum.index)?.commentCount ?? 0 : undefined}
+                quote={quote}
+                clock={clock}
                 outlook={kind === "token" ? referendumOutlook(referendum) : undefined}
                 hrefBase={copy.hrefBase}
                 fallbackLabel={copy.fallbackLabel}

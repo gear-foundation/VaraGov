@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ListChecks, Moon, Plus, Sun } from "lucide-react";
+import { Landmark, ListChecks, Moon, Plus, Sun } from "lucide-react";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { WalletButton } from "@/components/WalletButton";
 import { Logo, LogoMark } from "@/components/Logo";
@@ -107,6 +107,10 @@ export function Header() {
           <NavLink href="/referenda" activePrefixes={["/fellowship"]}>
             <span className="sm:hidden">Gov</span>
             <span className="hidden sm:inline">Governance</span>
+          </NavLink>
+          <NavLink href="/treasury">
+            <Landmark size={17} className="sm:hidden" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Treasury</span>
           </NavLink>
           <NavLink href="/votes">
             <ListChecks size={17} className="sm:hidden" aria-hidden="true" />

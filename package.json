@@ -12,7 +12,8 @@
     "backfill": "tsx scripts/backfill.mts",
     "check": "node --import tsx scripts/check-curves.ts && node --import tsx scripts/check-sima.mts",
     "test": "node --import tsx --test tests/*.test.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "backfill:treasury": "tsx scripts/backfill-treasury.mts"
   },
   "dependencies": {
     "@gear-js/api": "^0.45.0",

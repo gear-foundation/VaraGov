@@ -3,6 +3,8 @@ import { BN } from "@polkadot/util";
 import type { TrackInfo } from "./tracks";
 import {
   decodeCallTree,
+  isDecodedCallNode,
+  type DecodedCallValue,
   type CallRegistry,
   type DecodedCallNode,
 } from "./call-decoder";
@@ -44,6 +46,8 @@ export type Referendum = {
   decidedAt: number | null; // block of terminal event
   tally: Tally | null; // only while ongoing
   decisionDepositWho: string | null;
+  enactment?: { type: "at" | "after"; block: number };
+  undecidingTimeout?: number;
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -70,6 +74,8 @@ export function parseReferendumInfo(index: number, info: any): Referendum | null
   if (v.isOngoing) {
     const o = v.asOngoing;
     base.trackId = o.track.toNumber();
+    if (o.enactment?.isAt) base.enactment = { type: "at", block: o.enactment.asAt.toNumber() };
+    else if (o.enactment?.isAfter) base.enactment = { type: "after", block: o.enactment.asAfter.toNumber() };
     base.submittedAt = o.submitted.toNumber();
     base.proposer = o.submissionDeposit.who.toString();
     if (o.proposal.isLookup) {
@@ -155,23 +161,71 @@ export type DecodedCall = {
   hex: string;
 } | null;
 
+async function preimageLength(api: ApiPromise, hash: string): Promise<number | null> {
+  for (const storage of [api.query.preimage.requestStatusFor, api.query.preimage.statusFor]) {
+    if (!storage) continue;
+    const status = await storage(hash) as any;
+    if (!status.isSome) continue;
+    const value = status.unwrap();
+    const len = value.isRequested ? (value.asRequested.maybeLen ?? value.asRequested.len)?.unwrapOrDefault()
+      : value.isUnrequested ? value.asUnrequested.len : null;
+    if (len && !len.isZero?.()) return len.toNumber();
+  }
+  return null;
+}
+
+async function resolveWhitelistPreimages(api: ApiPromise, root: DecodedCallNode) {
+  const visited = new Set<string>();
+  async function walk(value: DecodedCallValue) {
+    if (Array.isArray(value)) {
+      for (const item of value) await walk(item);
+    } else if (isDecodedCallNode(value)) {
+      const node = value;
+      if (node.section === "whitelist" && node.method === "dispatchWhitelistedCall") {
+        const hash = node.args.find((arg) => /^0x[\da-f]{64}$/i.test(String(arg.value)))?.value;
+        if (typeof hash === "string" && !visited.has(hash) && visited.size < 8) {
+          visited.add(hash);
+          try {
+            const lengthArg = node.args.find((arg) => arg.name.toLowerCase().includes("len"))?.value;
+            const length = typeof lengthArg === "number" ? lengthArg : await preimageLength(api, hash);
+            const preimage: any = length ? await api.query.preimage.preimageFor([hash, length]) : null;
+            if (preimage?.isSome) {
+              const call = api.registry.createType("Call", preimage.unwrap().toHex());
+              const decoded = decodeCallTree(api.registry as unknown as CallRegistry, call.toJSON());
+              node.args.push({ name: "resolved call", type: "Call", value: decoded });
+            }
+          } catch { /* Keep the hash visible if the nested preimage cannot be read. */ }
+        }
+      }
+      for (const arg of node.args) await walk(arg.value);
+    } else if (value && typeof value === "object") {
+      for (const child of Object.values(value)) await walk(child);
+    }
+  }
+  await walk(root);
+}
+
 export async function decodeProposal(
   api: ApiPromise,
   ref: Referendum,
+  enrich = true,
 ): Promise<DecodedCall> {
   try {
     let hex = ref.inlineHex;
-    if (!hex && ref.proposalHash && ref.proposalLen !== null) {
+    if (!hex && ref.proposalHash) {
+      const length = ref.proposalLen ?? await preimageLength(api, ref.proposalHash);
+      if (length === null) return null;
       const pre = await api.query.preimage.preimageFor([
         ref.proposalHash,
-        ref.proposalLen,
+        length,
       ]);
       if ((pre as any).isSome) hex = (pre as any).unwrap().toHex();
     }
     if (!hex) return null;
     const call = api.registry.createType("Call", hex);
     const root = decodeCallTree(api.registry as unknown as CallRegistry, call.toJSON());
-    await enrichSailsMessages(root, resolveProgramIdlEntry);
+    await resolveWhitelistPreimages(api, root);
+    if (enrich) await enrichSailsMessages(root, resolveProgramIdlEntry);
     return {
       root,
       hex,
