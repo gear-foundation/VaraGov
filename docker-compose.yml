@@ -5,6 +5,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://varagov:${VARAGOV_DB_PASSWORD:-varagov}@postgres:5432/varagov
+      COINGECKO_DEMO_API_KEY: ${COINGECKO_DEMO_API_KEY:-}
+      VARA_TREASURY_LIMITS: ${VARA_TREASURY_LIMITS:-}
+      VARA_TREASURY_INFRASTRUCTURE: ${VARA_TREASURY_INFRASTRUCTURE:-}
+      VARA_TREASURY_MULTISIG: ${VARA_TREASURY_MULTISIG:-}
     ports:
       - "3000:3000"
     depends_on:

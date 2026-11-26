@@ -15,6 +15,8 @@ import {
 } from "../lib/server/indexer";
 import { parseReferendumInfo, ONGOING_PHASES } from "../lib/chain/referenda";
 
+import { recordTreasuryBlock } from "../lib/server/treasury-events";
+
 const ARCHIVE_ENDPOINTS = [
   "wss://archive-rpc.vara-network.io",
   "wss://archive.vara-network.io",
@@ -47,6 +49,12 @@ async function processBlock(api: ApiPromise, n: number): Promise<void> {
     // Catch-up must reflect this historical block, not whatever state is current now.
     await upsertFromState(apiAt, index);
   }
+  await recordTreasuryBlock(api, apiAt, hash.toHex(), n, events);
+  await prisma.treasuryHistoryCursor.upsert({
+    where: { id: 1 },
+    create: { id: 1, fromBlock: n, lastBlock: n },
+    update: { lastBlock: n },
+  });
 }
 
 async function syncOngoing(api: ApiPromise, atBlock: number): Promise<void> {

@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { use, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { hexToString, isHex } from "@polkadot/util";
-import { FilePenLine } from "lucide-react";
+import { ArrowLeft, FilePenLine } from "lucide-react";
 import { useApi } from "@/lib/chain/ApiProvider";
 import { useWallet } from "@/lib/chain/wallet";
 import { isTxPending, useSendTx, TX_LABEL } from "@/lib/chain/tx";
@@ -20,7 +21,6 @@ import { Markdown } from "@/components/Markdown";
 import { useContent } from "@/lib/content";
 import {
   useActiveIssuance,
-  useDecodedCall,
   useReferendum,
   useTracks,
 } from "@/lib/chain/hooks";
@@ -29,22 +29,22 @@ import {
   supportFraction,
 } from "@/lib/chain/curves";
 import {
-  blockToDate,
   blocksToDuration,
-  blocksToElapsedTime,
   formatVara,
 } from "@/lib/chain/format";
 import { referendumOutlook } from "@/lib/chain/referendum-outlook";
 import { ONGOING_PHASES } from "@/lib/chain/referenda";
 import { PHASE_LABEL, StatusPill, TrackBadge } from "@/components/referenda";
 import { CurveChart } from "@/components/CurveChart";
-import { CallViewer } from "@/components/CallViewer";
+import { ReferendumTreasury } from "@/components/ReferendumTreasury";
+import { useTokenProposal } from "@/lib/chain/proposal-hooks";
+import { requiredSupport } from "@/lib/chain/treasury";
+import { ExplorerAccount } from "@/components/TreasuryValues";
 import type { DecodedCallNode } from "@/lib/chain/call-decoder";
 import { sameAccount } from "@/lib/chain/address";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { humanizeReadError } from "@/lib/chain/errors";
 import { useReferendumVotes } from "@/lib/chain/voting";
-import { IdentityName } from "@/components/IdentityName";
 
 function DecisionDepositButton({ refIndex }: { refIndex: number }) {
   const { api, connected } = useApi();
@@ -125,7 +125,6 @@ export default function ReferendumPage({
     error: contentError,
     refetch: refetchContent,
   } = useContent(index);
-  const { finalizedNumber } = useApi();
   const {
     data: ref,
     isPending,
@@ -155,7 +154,8 @@ export default function ReferendumPage({
           proposalLen: history.referendum.proposalLen,
         }
       : ref;
-  const { data: call } = useDecodedCall(refForCall);
+  const { data: proposal } = useTokenProposal(refForCall, true, true);
+  const call = proposal?.call;
   const remark = readableRemark(call?.root);
 
   if (!Number.isInteger(index) || index < 0) {
@@ -190,13 +190,15 @@ export default function ReferendumPage({
   const support =
     ref.tally && issuance ? supportFraction(ref.tally.support, issuance) : null;
   const outlook = referendumOutlook(ref);
-  const progress = outlook.progress;
   const approvalThreshold = outlook.approvalThreshold;
   const supportThreshold = outlook.supportThreshold;
 
   return (
     <div className="anim-rise">
-      <header className="relative">
+      <Link href="/referenda" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+        <ArrowLeft size={15} aria-hidden /> Referenda
+      </Link>
+      <header className="rule-double relative pb-5">
         {!isOngoing && (
           <span
             className={`stamp absolute top-1 right-0 hidden text-sm sm:inline-block ${
@@ -232,44 +234,40 @@ export default function ReferendumPage({
         {proposer && (
           <p className="mt-2 text-sm text-muted">
             Proposed by{" "}
-            <IdentityName address={proposer} />
-            {ref.submittedAt !== null && finalizedNumber !== null && (
-              <>
-                {" · "}
-                {blockToDate(ref.submittedAt, finalizedNumber).toLocaleDateString(
-                  "en-GB",
-                  { day: "numeric", month: "short", year: "numeric" },
-                )}
-              </>
-            )}
+            <ExplorerAccount address={proposer} />
           </p>
         )}
 
       </header>
 
-      <div className="mt-6 lg:hidden">
-        {!isOngoing && (
-          <HistoryPanel index={ref.index} track={track} outcome={ref.phase} />
-        )}
-        {ref.tally && (
-          <TallyPanel
-            tally={ref.tally}
-            approval={approval}
-            support={support}
-            approvalThreshold={approvalThreshold}
-            supportThreshold={supportThreshold}
-            live
-            outlook={outlook}
-            issuance={issuance}
-            onVote={isOngoing ? () => setVoteOpen(true) : undefined}
-          />
-        )}
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="min-w-0">
-
-        <section>
+      <div className="mt-6 space-y-4">
+        <ReferendumTreasury referendum={ref} track={track} outlook={outlook} call={call}
+          anchor={proposal?.anchor} content={content} historicalTiming={proposal?.timing}
+          conditions={
+            <div className={track && isOngoing ? "grid items-start gap-4 lg:grid-cols-2" : "space-y-4"}>
+              <div className="space-y-3">
+                {!isOngoing && <HistoryPanel index={ref.index} track={track} outcome={ref.phase} />}
+                {ref.tally && <TallyPanel tally={ref.tally} approval={approval} support={support}
+                  approvalThreshold={approvalThreshold} supportThreshold={supportThreshold}
+                  live outlook={outlook} issuance={issuance} onVote={() => setVoteOpen(true)} />}
+                {track && issuance && ref.tally && outlook.supportThreshold !== null && <p className="text-sm text-muted">
+                  Support · {formatVara(ref.tally.support)} of {formatVara(requiredSupport(track, issuance, outlook.progress))} VARA required at this block.
+                </p>}
+                {isOngoing && !ref.decisionDepositWho && <div className="rounded-lg bg-warn/10 p-3 text-sm text-warn">
+                  Decision deposit required · {track ? `${formatVara(track.decisionDeposit)} VARA` : "amount unavailable"}.
+                  <DecisionDepositButton refIndex={ref.index} />
+                </div>}
+              </div>
+              {track && isOngoing && <section className="panel min-w-0 p-4">
+                <h2 className="label-serif mb-2">Approval &amp; support curves</h2>
+                <CurveChart track={track} outlook={outlook} approval={outlook.approval ?? approval} support={outlook.support ?? support} />
+                <Row label="Decision deposit">{formatVara(track.decisionDeposit)} VARA</Row>
+                <Row label="Confirmation period">{blocksToDuration(track.confirmPeriod)}</Row>
+              </section>}
+            </div>
+          }
+          application={
+            <section>
           {contentError && (
             <div className="mb-3">
               <ErrorNotice
@@ -286,6 +284,7 @@ export default function ReferendumPage({
                 : "rounded-[14px] border border-dashed border-line p-4"
             }
           >
+            <h2 className="label-serif mb-2">{call?.root.section === "system" && call.root.method === "remark" ? "Proposal text" : "Application and discussion"}</h2>
             {contentError ? (
               <p className="text-sm text-muted">
                 The description is temporarily unavailable.
@@ -301,6 +300,9 @@ export default function ReferendumPage({
               <p className="text-sm text-muted">No description has been provided yet.</p>
             )}
 
+            {!contentError && canEditContent && <p className="mt-3 text-xs text-muted">
+              <a className="text-accent-ink underline" href={`https://vara.subsquare.io/referenda/${index}`} target="_blank" rel="noreferrer">Open on Subsquare to add context there</a>
+            </p>}
             {!contentError && canEditContent ? (
               <button
                 onClick={() => setEditOpen(true)}
@@ -318,22 +320,8 @@ export default function ReferendumPage({
             ) : null}
           </div>
         </section>
-
-        <section className="mt-6 panel p-4">
-          <h2 className="label-serif mb-3">Proposal call</h2>
-          {call ? (
-            <CallViewer root={call.root} />
-          ) : ref.proposalHash ? (
-            <p className="tnum break-all text-xs text-muted">
-              Preimage {ref.proposalHash} (
-              {ref.proposalLen !== null ? `${ref.proposalLen} bytes` : "unknown size"}
-              ) — not available on chain, cannot decode.
-            </p>
-          ) : (
-            <p className="text-xs text-muted">No proposal data.</p>
-          )}
-        </section>
-
+          } />
+      </div>
         {(isOngoing ? liveVotesError : historyError) ? (
           <div className="mt-6">
             <ErrorNotice
@@ -359,106 +347,10 @@ export default function ReferendumPage({
           />
         )}
 
-        <Comments refIndex={ref.index} />
-      </div>
 
-      <aside className="space-y-4">
-        <div className="hidden lg:block">
-          {!isOngoing && (
-            <HistoryPanel index={ref.index} track={track} outcome={ref.phase} />
-          )}
-          {ref.tally && (
-            <TallyPanel
-              tally={ref.tally}
-              approval={approval}
-              support={support}
-              approvalThreshold={approvalThreshold}
-              supportThreshold={supportThreshold}
-              live
-              outlook={outlook}
-              issuance={issuance}
-              onVote={isOngoing ? () => setVoteOpen(true) : undefined}
-            />
-          )}
-        </div>
-        {voteOpen && (
-          <VotePopup referendum={ref} onClose={() => setVoteOpen(false)} />
-        )}
-        {editOpen && (
-          <EditContent
-            referendum={ref}
-            existing={content ?? null}
-            onClose={() => setEditOpen(false)}
-          />
-        )}
-
-        <section className="panel p-4">
-          <h2 className="label-serif mb-2">Status</h2>
-          <Row label="Phase">{PHASE_LABEL[ref.phase]}</Row>
-          {ref.submittedAt !== null && (
-            <Row label="Submitted">#{ref.submittedAt.toLocaleString("en-US")}</Row>
-          )}
-          {ref.decidingSince !== null && (
-            <Row label="Deciding since">
-              #{ref.decidingSince.toLocaleString("en-US")}
-            </Row>
-          )}
-          {ref.phase === "deciding" && track && (
-            <Row label="Decision elapsed">{blocksToElapsedTime(progress * track.decisionPeriod)}</Row>
-          )}
-          {ref.confirmingUntil !== null && finalizedNumber !== null && (
-            <Row label="Confirm ends">
-              ~
-              {blockToDate(ref.confirmingUntil, finalizedNumber).toLocaleString(
-                "en-GB",
-                { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" },
-              )}
-            </Row>
-          )}
-          {ref.decidedAt !== null && (
-            <Row label="Decided at">#{ref.decidedAt.toLocaleString("en-US")}</Row>
-          )}
-          {isOngoing && !ref.decisionDepositWho && (
-            <div className="mt-2 rounded-lg bg-warn/10 p-2.5 text-xs text-warn">
-              No decision deposit yet — this referendum will time out 14 days after
-              submission unless someone places{" "}
-              {track ? `${formatVara(track.decisionDeposit)} VARA` : "the deposit"}.
-              Anyone can place it.
-              <DecisionDepositButton refIndex={ref.index} />
-            </div>
-          )}
-        </section>
-
-        {track && (
-          <section className="panel p-4">
-            <h2 className="label-serif mb-2">
-              Track · {track.displayName}
-            </h2>
-            <Row label="Decision deposit">{formatVara(track.decisionDeposit)} VARA</Row>
-            <Row label="Prepare">{blocksToDuration(track.preparePeriod)}</Row>
-            <Row label="Decision">{blocksToDuration(track.decisionPeriod)}</Row>
-            <Row label="Confirm">{blocksToDuration(track.confirmPeriod)}</Row>
-            <Row label="Min enactment">
-              {blocksToDuration(track.minEnactmentPeriod)}
-            </Row>
-          </section>
-        )}
-
-        {track && isOngoing && (
-          <section className="panel p-4">
-            <h2 className="label-serif mb-2">
-              Approval &amp; support curves
-            </h2>
-            <CurveChart
-              track={track}
-              outlook={outlook}
-              approval={outlook.approval ?? approval}
-              support={outlook.support ?? support}
-            />
-          </section>
-        )}
-        </aside>
-      </div>
+      <Comments refIndex={ref.index} />
+      {voteOpen && <VotePopup referendum={ref} onClose={() => setVoteOpen(false)} />}
+      {editOpen && <EditContent referendum={ref} existing={content ?? null} onClose={() => setEditOpen(false)} />}
     </div>
   );
 }

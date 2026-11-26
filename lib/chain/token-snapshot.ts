@@ -20,6 +20,7 @@ export async function tokenSnapshot(api: ApiPromise, index?: number) {
   const atBlock = header.number.toNumber();
   return referenda.map((referendum): Referendum => ({
     ...referendum,
+    undecidingTimeout: Number(at.consts.referenda.undecidingTimeout.toString()),
     snapshot: { atBlock, activeIssuance, track: tracks.find((track) => track.id === referendum.trackId) },
   }));
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useTokenProposal } from "@/lib/chain/proposal-hooks";
+import { proposalSummary } from "@/lib/chain/treasury";
+import { nextReferendumStage, enactmentBlock } from "@/lib/chain/referendum-timing";
+import { dateLabel, estimatedDate, type ChainClock } from "@/lib/chain/chain-clock";
+import { Money, type Quote } from "./TreasuryValues";
+import { IdentityName } from "./IdentityName";
+import { ArrowUpRight, Coins, MessageSquare } from "lucide-react";
 import { VotingOutlook } from "./VotingOutlook";
 import type { ReferendumOutlook } from "@/lib/chain/referendum-outlook";
 import type { BN } from "@polkadot/util";
@@ -111,6 +118,37 @@ export function TallyBar({
   );
 }
 
+function ProposalPreview({ referendum, track, outlook, quote, clock }: {
+  referendum: Referendum; track?: TrackInfo; outlook: ReferendumOutlook; quote?: Quote; clock?: ChainClock;
+}) {
+  const element = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!element.current || visible) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); observer.disconnect(); }
+    }, { rootMargin: "150px" });
+    observer.observe(element.current);
+    return () => observer.disconnect();
+  }, [visible]);
+  const { data } = useTokenProposal(referendum, visible);
+  const summary = proposalSummary(data?.call?.root, track?.name);
+  const next = nextReferendumStage(referendum, track, outlook);
+  const nextDate = estimatedDate(clock, next?.block);
+  const enactment = estimatedDate(clock, enactmentBlock(referendum, track, outlook.approvalBlock));
+  return <div ref={element} className="mt-2 space-y-1 text-xs text-muted">
+    {summary.kind && <p className="font-medium text-muted">{summary.kind}</p>}
+    {summary.spends.map((spend, i) => <div key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-line bg-surface-2 px-2.5 py-1.5">
+      <Coins size={14} className="shrink-0 text-accent-ink" aria-hidden />
+      <span className="font-medium text-ink"><Money amount={spend.amount} quote={quote} /></span>
+      <span className="inline-flex min-w-0 items-center gap-1">to <IdentityName address={spend.beneficiary} /></span>
+    </div>)}
+    {next && <p>{next.label}{nextDate && ` · ~${dateLabel(nextDate)}`}</p>}
+    {enactment && <p>Earliest enactment · ~{dateLabel(enactment)}</p>}
+    {data && summary.incomplete && <p>Proposal details unavailable.</p>}
+  </div>;
+}
+
 // One entry in the ledger. Render inside a `.panel divide-y divide-line`.
 export function ReferendumRow({
   r,
@@ -122,6 +160,8 @@ export function ReferendumRow({
   commentCount,
   showComments = false,
   outlook,
+  quote,
+  clock,
 }: {
   r: Referendum;
   track: TrackInfo | undefined;
@@ -132,6 +172,8 @@ export function ReferendumRow({
   commentCount?: number;
   showComments?: boolean;
   outlook?: ReferendumOutlook;
+  quote?: Quote;
+  clock?: ChainClock;
 }) {
   const heading =
     title ??
@@ -139,7 +181,7 @@ export function ReferendumRow({
   return (
     <Link
       href={`${hrefBase}/${r.index}`}
-      className="row-hover anim-rise group grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-4 px-4 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_13rem] sm:gap-x-6 sm:px-6"
+      className="row-hover anim-rise group grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-x-3 px-4 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_13rem] sm:gap-x-6 sm:px-6"
       style={{ ["--stagger" as string]: `${stagger}ms` }}
     >
       <span className="row-index display tnum text-right text-[22px] leading-none text-muted/60 sm:text-2xl">
@@ -149,29 +191,31 @@ export function ReferendumRow({
         <h3 className="display row-title inline text-[17px] leading-snug font-medium sm:text-lg">
           {heading}
         </h3>
-        <div className="mt-2 grid grid-cols-[7.75rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 md:grid-cols-[7.75rem_10rem_minmax(0,1fr)]">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <StatusPill phase={r.phase} />
           <TrackBadge track={track} />
           {r.proposer && (
             <span
-              className="tnum hidden truncate text-xs text-muted/80 md:col-start-3 md:block"
+              className="tnum hidden max-w-32 truncate text-xs text-muted/80 md:block"
               title={r.proposer}
             >
               {shortAddress(r.proposer)}
             </span>
           )}
         </div>
-        {showComments && (
-          <span className="tnum mt-2 inline-flex items-center gap-1.5 text-xs text-muted"
-            aria-label={commentCount === undefined ? "Comment count unavailable" : `${commentCount} comments`}
-            title={commentCount === undefined ? "Comment count unavailable" : `${commentCount} comments, including replies`}>
-            <MessageSquare size={13} aria-hidden="true" />
-            {commentCount ?? "—"}
-          </span>
-        )}
-        {outlook && <VotingOutlook outlook={outlook} compact />}
+        {outlook && <ProposalPreview referendum={r} track={track} outlook={outlook} quote={quote} clock={clock} />}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          {outlook && <VotingOutlook outlook={outlook} compact clock={clock} />}
+          {showComments && (
+            <span className="tnum mt-2 ml-auto inline-flex items-center gap-1.5 text-xs text-muted"
+              aria-label={commentCount === undefined ? "Comment count unavailable" : `${commentCount} comments`}>
+              <MessageSquare size={13} aria-hidden /> {commentCount ?? "—"}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="hidden min-w-0 pt-1 sm:block">
+      <div className="hidden min-w-0 space-y-2 pt-1 sm:block">
+        <ArrowUpRight size={15} className="ml-auto text-muted transition-colors group-hover:text-accent-ink" aria-hidden />
         {r.tally ? (
           <TallyBar ayes={r.tally.ayes} nays={r.tally.nays} stagger={stagger + 150} />
         ) : r.decidedAt !== null ? (

@@ -101,3 +101,25 @@ model WorkerCursor {
   id        Int @id @default(1)
   lastBlock Int
 }
+
+model TreasuryEvent {
+  block       Int
+  ordinal     Int
+  timestamp   DateTime
+  kind        String
+  refIndex    Int?
+  spendIndex  Int?
+  txHash      String?
+  data        Json
+
+  @@id([block, ordinal])
+  @@index([kind, timestamp])
+  @@index([refIndex, block])
+  @@index([spendIndex, block])
+}
+
+model TreasuryHistoryCursor {
+  id        Int @id @default(1)
+  fromBlock Int
+  lastBlock Int
+}
