@@ -12,6 +12,11 @@ export const TREASURY_ADDRESS = encodeAddress(
   "0x6d6f646c70792f7472737279".padEnd(66, "0"), SS58_PREFIX,
 );
 
+// Vara's GearBank PalletId ("py/gbank") sends fee proceeds to the treasury.
+export const GEAR_BANK_ADDRESS = encodeAddress(
+  "0x6d6f646c70792f6762616e6b".padEnd(66, "0"), SS58_PREFIX,
+);
+
 export function poolBondedAccount(palletId: string, encodedPoolId: string) {
   return ("0x6d6f646c" + palletId.slice(2) + "00" + encodedPoolId.slice(2)).padEnd(66, "0");
 }

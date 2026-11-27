@@ -3,7 +3,7 @@ import { u8aConcat, stringToU8a } from "@polkadot/util";
 import { blake2AsHex } from "@polkadot/util-crypto";
 import { directVoteCapital, parseDirectVote } from "../chain/direct-votes";
 import { sameAccount } from "../chain/address";
-import { poolBondedAccount, TREASURY_ADDRESS } from "../chain/treasury";
+import { GEAR_BANK_ADDRESS, poolBondedAccount, TREASURY_ADDRESS } from "../chain/treasury";
 import { prisma } from "./db";
 
 export type TreasuryEventDto = {
@@ -154,11 +154,11 @@ export async function treasuryHistory(refIndex?: number) {
   });
   const spendIndices = approvalRows.flatMap((row) => row.spendIndex === null ? [] : [row.spendIndex]);
   const history = await prisma.treasuryEvent.findMany({
-    where: refIndex === undefined ? { kind: { notIn: ["Executed", "NestedFailure", "ExecutionFailed", "VoteCast", "ValidatorSlashed", "ValidatorsOffline"] } }
+    where: refIndex === undefined ? { kind: { notIn: ["Transfer", "Executed", "NestedFailure", "ExecutionFailed", "VoteCast", "ValidatorSlashed", "ValidatorsOffline"] } }
       : { OR: [{ refIndex }, { spendIndex: { in: spendIndices } }] },
     orderBy: [{ block: "desc" }, { ordinal: "desc" }], take: 200,
   });
-  const [validatorSignals, rewardTotals] = refIndex === undefined ? await Promise.all([
+  const [validatorSignals, rewardTotals, deposits] = refIndex === undefined ? await Promise.all([
     prisma.treasuryEvent.findMany({
       where: { kind: { in: ["ValidatorSlashed", "ValidatorsOffline"] }, timestamp: { gte: new Date(Date.now() - 30 * 86400_000) } },
       orderBy: [{ block: "desc" }, { ordinal: "desc" }], take: 500,
@@ -169,9 +169,20 @@ export async function treasuryHistory(refIndex?: number) {
         MAX("timestamp") AS latest
       FROM "TreasuryEvent" WHERE "kind" = 'PaidOut' AND "data"->>0 = ${TREASURY_ADDRESS}
     `,
-  ]) : [[], []];
+    // Filter before the limit so fee traffic never displaces ordinary deposits.
+    prisma.treasuryEvent.findMany({
+      where: {
+        kind: "Transfer",
+        data: { path: ["1"], equals: TREASURY_ADDRESS },
+        NOT: { data: { path: ["0"], equals: GEAR_BANK_ADDRESS } },
+      },
+      orderBy: [{ block: "desc" }, { ordinal: "desc" }], take: 50,
+    }),
+  ]) : [[], [], []];
   const rows = new Map([...approvalRows, ...history, ...validatorSignals].map((row) => [`${row.block}:${row.ordinal}`, row]));
-  const events: TreasuryEventDto[] = Array.from(rows.values()).sort((a, b) => b.block - a.block || b.ordinal - a.ordinal)
-    .map((row) => ({ ...row, timestamp: row.timestamp.toISOString(), data: row.data as string[] }));
-  return { events, trackingSince: cursor?.fromBlock ?? null, indexedThrough: cursor?.lastBlock ?? null, rewards: rewardTotals[0] ?? null };
+  const serialize = (row: (typeof history)[number]): TreasuryEventDto => ({
+    ...row, timestamp: row.timestamp.toISOString(), data: row.data as string[],
+  });
+  const events = Array.from(rows.values()).sort((a, b) => b.block - a.block || b.ordinal - a.ordinal).map(serialize);
+  return { events, deposits: deposits.map(serialize), trackingSince: cursor?.fromBlock ?? null, indexedThrough: cursor?.lastBlock ?? null, rewards: rewardTotals[0] ?? null };
 }

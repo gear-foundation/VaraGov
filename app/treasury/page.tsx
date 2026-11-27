@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import BigNumber from "bignumber.js";
-import { ArrowRight, ArrowUpRight, Coins, Landmark, ListChecks, ScrollText } from "lucide-react";
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, ChevronDown, Coins, Landmark, ListChecks, ScrollText } from "lucide-react";
 import { Guilloche } from "@/components/Guilloche";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { ExplorerAccount, LedgerAmount, Money, QuoteSource, freshQuote, useVaraPrice, type Quote } from "@/components/TreasuryValues";
@@ -12,26 +13,31 @@ import { useTreasury, useTreasuryHistory } from "@/lib/chain/treasury-hooks";
 import { SPEND_TRACK_NAMES } from "@/lib/chain/treasury";
 import { displayTrackName } from "@/lib/chain/tracks";
 import type { TreasuryEventDto } from "@/lib/server/treasury-events";
-import type { TreasurySnapshot } from "@/lib/server/treasury";
+import { DECIMALS } from "@/lib/chain/format";
 
 function TxLink({ hash }: { hash: string | null | undefined }) {
   return hash ? <a className="text-accent-ink underline" href={`https://vara.subscan.io/extrinsic/${hash}`} target="_blank" rel="noreferrer">Transaction</a> : null;
 }
 
-function Activity({ event, treasury, quote }: { event: TreasuryEventDto; treasury: TreasurySnapshot; quote?: Quote }) {
-  const incoming = event.kind === "Transfer" && sameAccount(event.data[1], treasury.address);
-  const title = event.kind === "Transfer" ? incoming ? "Treasury receipt" : "Treasury transfer"
-    : event.kind === "PaidOut" ? "Staking rewards received"
-      : event.kind.replace(/([a-z])([A-Z])/g, "$1 $2");
-  return <li className="flex flex-wrap justify-between gap-2 py-3 text-sm">
-    <div>{title}{" "}
-      {["Transfer", "PaidOut", "Unbonded", "Withdrawn", "Bonded"].includes(event.kind) && /^\d+$/.test(event.data[2] ?? "") && <Money amount={event.data[2]} quote={quote} />}
-      {event.kind === "Transfer" && <> · <ExplorerAccount address={event.data[incoming ? 0 : 1]} /></>}
-      {event.kind === "LegacyAwarded" && <> · <Money amount={event.data[1]} quote={quote} /> · <ExplorerAccount address={event.data[2]} /></>}
+const SECTION_LINKS = [
+  ["spends", "Spending"], ["staking", "Staking"], ["operations", "Multisig"],
+  ["infrastructure", "Infrastructure"], ["limits", "Track limits"], ["activity", "Deposits"],
+] as const;
+
+function Deposit({ event, quote }: { event: TreasuryEventDto; quote?: Quote }) {
+  const [sender, , amount] = event.data;
+  const value = new BigNumber(amount).shiftedBy(-DECIMALS);
+  return <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+    <span className="flex size-8 items-center justify-center rounded-md bg-accent-soft text-accent-ink">
+      <ArrowDownLeft size={16} aria-hidden />
+    </span>
+    <div className="min-w-0 text-sm">
+      <p className="font-medium">From <ExplorerAccount address={sender} /></p>
+      <p className="mt-0.5 text-xs text-muted"><time dateTime={event.timestamp}>{dateLabel(new Date(event.timestamp))}</time>{event.txHash && <> · <TxLink hash={event.txHash} /></>}</p>
     </div>
-    <div className="flex flex-wrap gap-2 text-xs text-muted">
-      {event.refIndex !== null && <Link className="text-accent-ink" href={`/referenda/${event.refIndex}`}>#{event.refIndex}</Link>}
-      {dateLabel(new Date(event.timestamp))}<TxLink hash={event.txHash} />
+    <div className="col-start-2 min-w-0 text-sm tnum sm:col-start-3 sm:text-right">
+      <p className="break-words font-semibold">+{value.toFormat()} <span className="text-xs text-muted">VARA</span></p>
+      {quote && <p className="text-xs text-muted">≈ ${value.times(quote.usd).toFormat(2)}</p>}
     </div>
   </li>;
 }
@@ -39,6 +45,7 @@ function Activity({ event, treasury, quote }: { event: TreasuryEventDto; treasur
 export default function TreasuryPage() {
   const live = useTreasury();
   const history = useTreasuryHistory();
+  const [depositLimit, setDepositLimit] = useState(5);
   const quote = freshQuote(useVaraPrice());
   const treasury = live.data;
   if (live.isError && !treasury) return <ErrorNotice message="Treasury data is unavailable." onRetry={() => void live.refetch()} />;
@@ -50,7 +57,7 @@ export default function TreasuryPage() {
   const lifecycle = (index: number) => events.find((event) => ["Paid", "PaymentFailed", "AssetSpendVoided"].includes(event.kind) && event.spendIndex === index);
   const rewards = history.data?.rewards;
   const operations = events.filter((event) => ["Bonded", "Unbonded", "Withdrawn", "RolesUpdated", "StateChanged", "Nominated"].includes(event.kind));
-  const activity = events.filter((event) => ["Transfer", "Paid", "PaidOut", "AssetSpendVoided", "PaymentFailed", "LegacyAwarded"].includes(event.kind));
+  const deposits = history.data?.deposits ?? [];
   const activeSpendCount = spends.filter((spend) => spend.expireAt > clock.block && spend.status !== "attempted").length;
 
   return <div className="space-y-6 anim-rise">
@@ -97,11 +104,11 @@ export default function TreasuryPage() {
         <p className="text-xs text-muted">Operating target · 100,000 VARA. Approved spends can use these funds.</p>
       </footer>
     </section>
-    <nav aria-label="Treasury sections" className="-mx-1 flex flex-wrap gap-1 border-b border-line px-1 pb-2">
-      {[["spends", "Spending"], ["activity", "Activity"], ["staking", "Staking"], ["limits", "Track limits"], ["operations", "Operations"]].map(([id, label]) =>
-        <a key={id} href={`#${id}`} className="btn btn-ghost !px-2.5 !py-1.5">{label}</a>)}
+    <nav aria-label="Treasury sections" className="panel sticky top-14 z-[calc(var(--z-sticky)-1)] grid grid-cols-3 gap-1 p-1.5 sm:flex sm:flex-wrap">
+      {SECTION_LINKS.map(([id, label]) =>
+        <a key={id} href={`#${id}`} className="btn btn-ghost justify-center !border-transparent !px-1 !py-2 !text-xs sm:!px-3 sm:!text-sm">{label}</a>)}
     </nav>
-    <section id="spends" className="panel scroll-mt-20 p-5 sm:p-6">
+    <section id="spends" className="panel scroll-mt-36 sm:scroll-mt-28 p-5 sm:p-6">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="display text-xl font-semibold">Approved spends</h2>
         <span className="text-xs text-muted">{activeSpendCount} open</span>
@@ -140,23 +147,7 @@ export default function TreasuryPage() {
         </li>;
       })}</ul>
     </section>
-    <section id="activity" className="panel scroll-mt-20 p-5 sm:p-6">
-      <h2 className="display mb-3 text-xl font-semibold">Treasury activity</h2>
-      {history.isError ? <ErrorNotice message="Treasury activity is unavailable." onRetry={() => void history.refetch()} /> :
-        <p className="text-xs text-muted">{history.data?.trackingSince ? `Indexed blocks #${history.data.trackingSince.toLocaleString()}–#${history.data.indexedThrough?.toLocaleString()}` : null}</p>}
-      {!history.isError && activity.length === 0 && <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-        <ScrollText size={16} aria-hidden /> {history.isPending ? "Loading the activity ledger…" : history.data?.trackingSince ? "No transactions in the indexed history." : "Activity will appear when the worker finishes indexing its first block."}
-      </p>}
-      <ul className="mt-2 divide-y divide-line">{activity.map((event) =>
-        event.kind === "Paid" ? <li className="py-3 text-sm" key={`${event.block}:${event.ordinal}`}>
-          Paid spend #{event.spendIndex}{event.spendIndex !== null && (() => {
-            const record = approval(event.spendIndex);
-            return record && <> · <Money amount={record.data[2]} quote={quote} /> · <ExplorerAccount address={record.data[3]} />
-              {record.refIndex !== null && <> · <Link href={`/referenda/${record.refIndex}`}>Referendum #{record.refIndex}</Link></>}</>;
-          })()} · {dateLabel(new Date(event.timestamp))} <TxLink hash={event.txHash} />
-        </li> : <Activity key={`${event.block}:${event.ordinal}`} event={event} treasury={treasury} quote={quote} />)}</ul>
-    </section>
-    <section id="staking" className="panel scroll-mt-20 p-5 sm:p-6">
+    <section id="staking" className="panel scroll-mt-36 sm:scroll-mt-28 p-5 sm:p-6">
       <h2 className="display mb-3 text-xl font-semibold">Treasury staking pool</h2>
       {pool ? <div className="space-y-3 text-sm">
         <p>Pool #{pool.id} · {pool.state} · {pool.members} member(s)</p>
@@ -186,28 +177,30 @@ export default function TreasuryPage() {
         </>}
       </div> : <p className="text-sm text-muted">{treasury.poolUnavailable ? "Pool data unavailable." : "The treasury does not currently belong to a pool."}</p>}
     </section>
-    <section id="operations" className="panel scroll-mt-20 p-5 sm:p-6">
-      <h2 className="display mb-3 text-xl font-semibold">Operations multisig</h2>
-      {multisig ? <div className="space-y-2 text-sm">
-        <p>{multisig.threshold} of {multisig.signers.length} · <ExplorerAccount address={multisig.address} /></p>
-        <ul>{multisig.signers.map((address) => <li key={address}><ExplorerAccount address={address} /></li>)}</ul>
-        <p>Starts withdrawals, returns unlocked funds to the treasury, adds funds to the pool and nominates validators. Grant recipients are decided by referendum.</p>
-      </div> : <p className="text-sm text-muted">Multisig membership has not been configured.</p>}
-      {pool?.proxies.map((proxy) => <p key={`${proxy.delegate}-${proxy.proxyType}`} className="text-sm"><ExplorerAccount address={proxy.delegate} /> · {proxy.proxyType}</p>)}
-      {operations.length > 0 && <ul className="mt-3 divide-y divide-line">{operations.map((event) => <li key={`${event.block}:${event.ordinal}`} className="py-2 text-sm">
-        {event.kind} · {event.refIndex !== null ? <Link href={`/referenda/${event.refIndex}`}>Referendum #{event.refIndex}</Link> : <span className="text-nay">No verified referendum link</span>} · {dateLabel(new Date(event.timestamp))} <TxLink hash={event.txHash} />
-        {event.kind === "Nominated" && <ul className="mt-1 pl-3">{event.data.map((address) => <li key={address}><ExplorerAccount address={address} /></li>)}</ul>}
-      </li>)}</ul>}
-    </section>
-    <section className="panel p-5 sm:p-6">
-      <h2 className="display mb-3 text-xl font-semibold">Validators and infrastructure</h2>
-      <p className="text-sm">{treasury.infrastructure ? <>
-        ${treasury.infrastructure.usd.toLocaleString()} planned
-        {quote && <> (≈ {new BigNumber(treasury.infrastructure.usd).div(quote.usd).toFormat(0)} VARA)</>}
-        {" · "}{treasury.infrastructure.due}
-      </> : "Funding estimate and deadline have not been configured."}</p>
-    </section>
-    <section id="limits" className="panel scroll-mt-20 p-5 sm:p-6">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      <section id="operations" className="panel scroll-mt-36 sm:scroll-mt-28 p-5 sm:p-6">
+        <h2 className="display mb-3 text-xl font-semibold">Operations multisig</h2>
+        {multisig ? <div className="space-y-2 text-sm">
+          <p>{multisig.threshold} of {multisig.signers.length} · <ExplorerAccount address={multisig.address} /></p>
+          <ul>{multisig.signers.map((address) => <li key={address}><ExplorerAccount address={address} /></li>)}</ul>
+          <p>Starts withdrawals, returns unlocked funds to the treasury, adds funds to the pool and nominates validators. Grant recipients are decided by referendum.</p>
+        </div> : <p className="text-sm text-muted">Multisig membership has not been configured.</p>}
+        {pool?.proxies.map((proxy) => <p key={`${proxy.delegate}-${proxy.proxyType}`} className="text-sm"><ExplorerAccount address={proxy.delegate} /> · {proxy.proxyType}</p>)}
+        {operations.length > 0 && <ul className="mt-3 divide-y divide-line">{operations.map((event) => <li key={`${event.block}:${event.ordinal}`} className="py-2 text-sm">
+          {event.kind} · {event.refIndex !== null ? <Link href={`/referenda/${event.refIndex}`}>Referendum #{event.refIndex}</Link> : <span className="text-nay">No verified referendum link</span>} · {dateLabel(new Date(event.timestamp))} <TxLink hash={event.txHash} />
+          {event.kind === "Nominated" && <ul className="mt-1 pl-3">{event.data.map((address) => <li key={address}><ExplorerAccount address={address} /></li>)}</ul>}
+        </li>)}</ul>}
+      </section>
+      <section id="infrastructure" className="panel scroll-mt-36 p-5 sm:scroll-mt-28 sm:p-6">
+        <h2 className="display mb-3 text-xl font-semibold">Validators and infrastructure</h2>
+        <p className="text-sm">{treasury.infrastructure ? <>
+          ${treasury.infrastructure.usd.toLocaleString()} planned
+          {quote && <> (≈ {new BigNumber(treasury.infrastructure.usd).div(quote.usd).toFormat(0)} VARA)</>}
+          {" · "}{treasury.infrastructure.due}
+        </> : "Funding estimate and deadline have not been configured."}</p>
+      </section>
+    </div>
+    <section id="limits" className="panel scroll-mt-36 sm:scroll-mt-28 p-5 sm:p-6">
       <h2 className="display mb-2 text-xl font-semibold">Track limits</h2>
       <p className="mb-4 text-sm text-muted">Spending caps apply to one proposal. Required support is measured at the end of the decision period.</p>
       <ul className="divide-y divide-line">
@@ -226,6 +219,29 @@ export default function TreasuryPage() {
           </dl>
         </li>)}
       </ul>
+    </section>
+    <section id="activity" className="panel scroll-mt-36 p-5 sm:scroll-mt-28 sm:p-6">
+      <header className="mb-2">
+        <h2 className="display text-xl font-semibold">Treasury activity</h2>
+        <p className="mt-1 text-sm text-muted">Incoming transfers to the treasury</p>
+      </header>
+      {history.isError && <ErrorNotice compact message="Treasury activity is unavailable." onRetry={() => void history.refetch()} />}
+      {!history.isError && deposits.length === 0 && <div className="mt-3 flex items-center gap-2 rounded-md border border-dashed border-line-strong p-3 text-sm text-muted">
+        <ScrollText size={16} className="shrink-0" aria-hidden />
+        {history.isPending ? "Loading transfers…" : history.data?.trackingSince ? "No incoming transfers in the indexed history." : "Incoming transfers will appear as blocks are indexed."}
+      </div>}
+      {deposits.length > 0 && <>
+        <ul id="treasury-deposits" className="divide-y divide-line">
+          {deposits.slice(0, depositLimit).map((event) => <Deposit key={`${event.block}:${event.ordinal}`} event={event} quote={quote} />)}
+        </ul>
+        {deposits.length > 5 && <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
+          {depositLimit < deposits.length && <button type="button" className="btn btn-ghost" aria-controls="treasury-deposits" onClick={() => setDepositLimit((count) => count + 5)}>
+            Show more transfers <ChevronDown size={14} aria-hidden />
+          </button>}
+          {depositLimit > 5 && <button type="button" className="btn btn-ghost" aria-controls="treasury-deposits" onClick={() => setDepositLimit(5)}>Show fewer</button>}
+          <span className="text-xs text-muted" aria-live="polite">{Math.min(depositLimit, deposits.length)} of {deposits.length}{deposits.length === 50 ? " latest" : ""}</span>
+        </div>}
+      </>}
     </section>
   </div>;
 }

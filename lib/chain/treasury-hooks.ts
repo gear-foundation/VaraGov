@@ -19,7 +19,7 @@ export function useTreasury(enabled = true) {
 export function useTreasuryHistory(index?: number) {
   return useQuery({
     queryKey: ["treasury-history", index],
-    queryFn: () => read<{ events: TreasuryEventDto[]; trackingSince: number | null; indexedThrough: number | null; rewards: { total: string; month: string; latest: string | null } | null }>(
+    queryFn: () => read<{ events: TreasuryEventDto[]; deposits: TreasuryEventDto[]; trackingSince: number | null; indexedThrough: number | null; rewards: { total: string; month: string; latest: string | null } | null }>(
       index === undefined ? "/api/treasury/history" : `/api/treasury/history?ref=${index}`,
     ),
     refetchInterval: 20_000,
