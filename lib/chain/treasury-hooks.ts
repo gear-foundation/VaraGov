@@ -25,3 +25,12 @@ export function useTreasuryHistory(index?: number) {
     refetchInterval: 20_000,
   });
 }
+
+export function useTreasuryFees(enabled: boolean) {
+  return useQuery({
+    queryKey: ["treasury-history", "fees"],
+    queryFn: () => read<{ fees: TreasuryEventDto[] }>("/api/treasury/history?inflows=fees"),
+    enabled,
+    refetchInterval: 20_000,
+  });
+}

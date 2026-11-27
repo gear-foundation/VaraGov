@@ -9,7 +9,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { ExplorerAccount, LedgerAmount, Money, QuoteSource, freshQuote, useVaraPrice, type Quote } from "@/components/TreasuryValues";
 import { dateLabel, estimatedDate, estimatedEraDate } from "@/lib/chain/chain-clock";
 import { sameAccount } from "@/lib/chain/address";
-import { useTreasury, useTreasuryHistory } from "@/lib/chain/treasury-hooks";
+import { useTreasury, useTreasuryFees, useTreasuryHistory } from "@/lib/chain/treasury-hooks";
 import { SPEND_TRACK_NAMES } from "@/lib/chain/treasury";
 import { displayTrackName } from "@/lib/chain/tracks";
 import type { TreasuryEventDto } from "@/lib/server/treasury-events";
@@ -24,7 +24,7 @@ const SECTION_LINKS = [
   ["infrastructure", "Infrastructure"], ["limits", "Track limits"], ["activity", "Inflows"],
 ] as const;
 
-function Deposit({ event, quote }: { event: TreasuryEventDto; quote?: Quote }) {
+function InflowRow({ event, quote, isFee }: { event: TreasuryEventDto; quote?: Quote; isFee: boolean }) {
   const [sender, , amount] = event.data;
   const value = new BigNumber(amount).shiftedBy(-DECIMALS);
   return <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
@@ -32,8 +32,8 @@ function Deposit({ event, quote }: { event: TreasuryEventDto; quote?: Quote }) {
       <ArrowDownLeft size={16} aria-hidden />
     </span>
     <div className="min-w-0 text-sm">
-      <p className="font-medium">From <ExplorerAccount address={sender} /></p>
-      <p className="mt-0.5 text-xs text-muted"><time dateTime={event.timestamp}>{dateLabel(new Date(event.timestamp))}</time>{event.txHash && <> · <TxLink hash={event.txHash} /></>}</p>
+      <p className="font-medium">{isFee ? "Network fees" : <>From <ExplorerAccount address={sender} /></>}</p>
+      <p className="mt-0.5 text-xs text-muted"><time dateTime={event.timestamp}>{dateLabel(new Date(event.timestamp))}</time>{event.txHash ? <> · <TxLink hash={event.txHash} /></> : isFee ? <> · Block #{event.block.toLocaleString()}</> : null}</p>
     </div>
     <div className="col-start-2 min-w-0 text-sm tnum sm:col-start-3 sm:text-right">
       <p className="break-words font-semibold">+{value.toFormat()} <span className="text-xs text-muted">VARA</span></p>
@@ -45,7 +45,10 @@ function Deposit({ event, quote }: { event: TreasuryEventDto; quote?: Quote }) {
 export default function TreasuryPage() {
   const live = useTreasury();
   const history = useTreasuryHistory();
-  const [depositLimit, setDepositLimit] = useState(5);
+  const [inflowFilter, setInflowFilter] = useState<"transfers" | "fees">("transfers");
+  const [inflowLimit, setInflowLimit] = useState(5);
+  const showFees = inflowFilter === "fees";
+  const fees = useTreasuryFees(showFees);
   const quote = freshQuote(useVaraPrice());
   const treasury = live.data;
   if (live.isError && !treasury) return <ErrorNotice message="Treasury data is unavailable." onRetry={() => void live.refetch()} />;
@@ -57,7 +60,9 @@ export default function TreasuryPage() {
   const lifecycle = (index: number) => events.find((event) => ["Paid", "PaymentFailed", "AssetSpendVoided"].includes(event.kind) && event.spendIndex === index);
   const rewards = history.data?.rewards;
   const operations = events.filter((event) => ["Bonded", "Unbonded", "Withdrawn", "RolesUpdated", "StateChanged", "Nominated"].includes(event.kind));
-  const deposits = history.data?.deposits ?? [];
+  const inflows = (showFees ? fees.data?.fees : history.data?.deposits) ?? [];
+  const inflowQuery = showFees ? fees : history;
+  const inflowLabel = showFees ? "fees" : "transfers";
   const activeSpendCount = spends.filter((spend) => spend.expireAt > clock.block && spend.status !== "attempted").length;
 
   return <div className="space-y-6 anim-rise">
@@ -221,25 +226,41 @@ export default function TreasuryPage() {
       </ul>
     </section>
     <section id="activity" className="panel scroll-mt-36 p-5 sm:scroll-mt-28 sm:p-6">
-      <header className="mb-2">
-        <h2 className="display text-xl font-semibold">Treasury activity</h2>
-        <p className="mt-1 text-sm text-muted">Incoming transfers to the treasury</p>
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="display text-xl font-semibold">Treasury activity</h2>
+          <p className="mt-1 text-sm text-muted">{showFees ? "Network fees sent to the treasury by Gear Bank" : "Incoming transfers to the treasury"}</p>
+        </div>
+        <div role="group" aria-label="Filter treasury inflows" className="inline-flex gap-1 rounded-md bg-surface-2 p-1">
+          {(["transfers", "fees"] as const).map((filter) => (
+            <button key={filter} type="button" aria-pressed={inflowFilter === filter}
+              className={`btn !px-3 !py-1.5 ${inflowFilter === filter ? "bg-accent-soft text-accent-ink" : "text-muted hover:bg-surface hover:text-ink"}`}
+              onClick={() => {
+                if (inflowFilter === filter) return;
+                setInflowFilter(filter);
+                setInflowLimit(5);
+              }}>
+              {filter === "fees" ? "Fees" : "Transfers"}
+            </button>
+          ))}
+        </div>
       </header>
-      {history.isError && <ErrorNotice compact message="Treasury activity is unavailable." onRetry={() => void history.refetch()} />}
-      {!history.isError && deposits.length === 0 && <div className="mt-3 flex items-center gap-2 rounded-md border border-dashed border-line-strong p-3 text-sm text-muted">
+      {inflowQuery.isError && <ErrorNotice compact message="Treasury activity is unavailable." onRetry={() => void inflowQuery.refetch()} />}
+      {!inflowQuery.isError && inflows.length === 0 && <div aria-live="polite" className="mt-3 flex items-center gap-2 rounded-md border border-dashed border-line-strong p-3 text-sm text-muted">
         <ScrollText size={16} className="shrink-0" aria-hidden />
-        {history.isPending ? "Loading transfers…" : history.data?.trackingSince ? "No incoming transfers in the indexed history." : "Incoming transfers will appear as blocks are indexed."}
+        {inflowQuery.isPending ? `Loading ${inflowLabel}…` : showFees ? "No fees in the indexed history."
+          : history.data?.trackingSince ? "No incoming transfers in the indexed history." : "Incoming transfers will appear as blocks are indexed."}
       </div>}
-      {deposits.length > 0 && <>
-        <ul id="treasury-deposits" className="divide-y divide-line">
-          {deposits.slice(0, depositLimit).map((event) => <Deposit key={`${event.block}:${event.ordinal}`} event={event} quote={quote} />)}
+      {inflows.length > 0 && <>
+        <ul id="treasury-inflows" className="divide-y divide-line">
+          {inflows.slice(0, inflowLimit).map((event) => <InflowRow key={`${event.block}:${event.ordinal}`} event={event} quote={quote} isFee={showFees} />)}
         </ul>
-        {deposits.length > 5 && <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
-          {depositLimit < deposits.length && <button type="button" className="btn btn-ghost" aria-controls="treasury-deposits" onClick={() => setDepositLimit((count) => count + 5)}>
-            Show more transfers <ChevronDown size={14} aria-hidden />
+        {inflows.length > 5 && <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
+          {inflowLimit < inflows.length && <button type="button" className="btn btn-ghost" aria-controls="treasury-inflows" onClick={() => setInflowLimit((count) => count + 5)}>
+            Show more {inflowLabel} <ChevronDown size={14} aria-hidden />
           </button>}
-          {depositLimit > 5 && <button type="button" className="btn btn-ghost" aria-controls="treasury-deposits" onClick={() => setDepositLimit(5)}>Show fewer</button>}
-          <span className="text-xs text-muted" aria-live="polite">{Math.min(depositLimit, deposits.length)} of {deposits.length}{deposits.length === 50 ? " latest" : ""}</span>
+          {inflowLimit > 5 && <button type="button" className="btn btn-ghost" aria-controls="treasury-inflows" onClick={() => setInflowLimit(5)}>Show less</button>}
+          <span className="text-xs text-muted" aria-live="polite">{Math.min(inflowLimit, inflows.length)} of {inflows.length}{inflows.length === 50 ? " latest" : ""}</span>
         </div>}
       </>}
     </section>

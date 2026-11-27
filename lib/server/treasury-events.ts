@@ -5,6 +5,7 @@ import { directVoteCapital, parseDirectVote } from "../chain/direct-votes";
 import { sameAccount } from "../chain/address";
 import { GEAR_BANK_ADDRESS, poolBondedAccount, TREASURY_ADDRESS } from "../chain/treasury";
 import { prisma } from "./db";
+import type { TreasuryEvent } from "../generated/prisma/client";
 
 export type TreasuryEventDto = {
   block: number; ordinal: number; timestamp: string; kind: string;
@@ -146,6 +147,24 @@ function matchingCalls(value: any, section: string, method: string): any[] {
   return Array.from(value.args as Iterable<any>).flatMap((arg) => matchingCalls(arg, section, method));
 }
 
+function serializeEvent(row: TreasuryEvent): TreasuryEventDto {
+  return { ...row, timestamp: row.timestamp.toISOString(), data: row.data as string[] };
+}
+
+export async function treasuryInflows(kind: "transfers" | "fees") {
+  const bankSender = { data: { path: ["0"], equals: GEAR_BANK_ADDRESS } };
+  const rows = await prisma.treasuryEvent.findMany({
+    where: {
+      kind: "Transfer",
+      data: { path: ["1"], equals: TREASURY_ADDRESS },
+      ...(kind === "fees" ? { AND: bankSender } : { NOT: bankSender }),
+    },
+    orderBy: [{ block: "desc" }, { ordinal: "desc" }],
+    take: 50,
+  });
+  return rows.map(serializeEvent);
+}
+
 export async function treasuryHistory(refIndex?: number) {
   const cursor = await prisma.treasuryHistoryCursor.findUnique({ where: { id: 1 } });
   const approvalRows = await prisma.treasuryEvent.findMany({
@@ -169,20 +188,9 @@ export async function treasuryHistory(refIndex?: number) {
         MAX("timestamp") AS latest
       FROM "TreasuryEvent" WHERE "kind" = 'PaidOut' AND "data"->>0 = ${TREASURY_ADDRESS}
     `,
-    // Filter before the limit so fee traffic never displaces ordinary deposits.
-    prisma.treasuryEvent.findMany({
-      where: {
-        kind: "Transfer",
-        data: { path: ["1"], equals: TREASURY_ADDRESS },
-        NOT: { data: { path: ["0"], equals: GEAR_BANK_ADDRESS } },
-      },
-      orderBy: [{ block: "desc" }, { ordinal: "desc" }], take: 50,
-    }),
+    treasuryInflows("transfers"),
   ]) : [[], [], []];
   const rows = new Map([...approvalRows, ...history, ...validatorSignals].map((row) => [`${row.block}:${row.ordinal}`, row]));
-  const serialize = (row: (typeof history)[number]): TreasuryEventDto => ({
-    ...row, timestamp: row.timestamp.toISOString(), data: row.data as string[],
-  });
-  const events = Array.from(rows.values()).sort((a, b) => b.block - a.block || b.ordinal - a.ordinal).map(serialize);
-  return { events, deposits: deposits.map(serialize), trackingSince: cursor?.fromBlock ?? null, indexedThrough: cursor?.lastBlock ?? null, rewards: rewardTotals[0] ?? null };
+  const events = Array.from(rows.values()).sort((a, b) => b.block - a.block || b.ordinal - a.ordinal).map(serializeEvent);
+  return { events, deposits, trackingSince: cursor?.fromBlock ?? null, indexedThrough: cursor?.lastBlock ?? null, rewards: rewardTotals[0] ?? null };
 }
