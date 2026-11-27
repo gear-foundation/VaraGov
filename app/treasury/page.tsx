@@ -21,7 +21,7 @@ function TxLink({ hash }: { hash: string | null | undefined }) {
 
 const SECTION_LINKS = [
   ["spends", "Spending"], ["staking", "Staking"], ["operations", "Multisig"],
-  ["infrastructure", "Infrastructure"], ["limits", "Track limits"], ["activity", "Deposits"],
+  ["infrastructure", "Infrastructure"], ["limits", "Track limits"], ["activity", "Inflows"],
 ] as const;
 
 function Deposit({ event, quote }: { event: TreasuryEventDto; quote?: Quote }) {
